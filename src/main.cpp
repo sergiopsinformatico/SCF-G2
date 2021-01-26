@@ -3,7 +3,6 @@
 #include "freertos/task.h"
 #include "main.h"
 
-//prueba
 
 // Sensor queue
 static QueueHandle_t s_sensorDataQueue;
