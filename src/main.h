@@ -1,5 +1,7 @@
 // Pines
 #define ALARM_BUTTON_PIN D2
+#define PRESENCE_PIN D9
+#define PRESENCE_READ_PERIOD 500
 
 // Structs
 /**
@@ -25,3 +27,4 @@ typedef struct
 // Funciones
 static void main_task_handler(void *pvParameters);
 static void temp_task_handler(void *pvParameters);
+static void send_sensor_msg(int sensorPin, int value);
