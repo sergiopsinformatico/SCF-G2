@@ -27,6 +27,7 @@ static void main_task_handler(void *pvParameters)
 
   int presence = LOW;
   bool presenceChange = false;
+  bool envChange = false;
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
   for (;;)
@@ -35,6 +36,7 @@ static void main_task_handler(void *pvParameters)
     vTaskDelayUntil(&xLastWakeTime, 50 / portTICK_RATE_MS);
     xLastWakeTime = xTaskGetTickCount();
     // Se lee de la cola de sensores
+    EnvironmentTopicMsg envMsg ;
     if (xQueueReceive(s_sensorDataQueue, &currentPinRead, portMAX_DELAY) == pdPASS)
     {
       // En función del tipo de msg
@@ -46,11 +48,23 @@ static void main_task_handler(void *pvParameters)
           presenceChange = true;
         }
         break;
-
+      case TEMPERATURE_SENSOR_PIN:
+        envChange = true;
+        envMsg.temperature = currentPinRead.value / 10;
+        break;
+      case MQ_SENSOR_PIN:
+        envChange = true;
+        envMsg.airQuality = currentPinRead.value;
+        break;
+      case LDR_PIN:
+        envChange = true;
+        envMsg.lightLevel = currentPinRead.value;
+        break;
       default:
         break;
       }
     }
+
 
     // TODO Si han variado una o más condiciones se
     // crea el mensaje para topic de salida
@@ -58,6 +72,16 @@ static void main_task_handler(void *pvParameters)
       presenceChange = false;
       Serial.print("PRESENCE ");
       Serial.println(currentPinRead.value);
+    }
+
+    if(envChange) {
+      envChange = false;
+      Serial.print("Env: Temp ");
+      Serial.print(envMsg.temperature);
+      Serial.print(" - Light ");
+      Serial.print(envMsg.lightLevel);
+      Serial.print(" - Air ");
+      Serial.println(envMsg.airQuality);
     }
   }
 }
@@ -91,7 +115,7 @@ static void temperature_task_handler(void *pvParameters)
       xQueueSend(s_sensorDataQueue, (void *)&temperatureMsg, (TickType_t)0);
     }
 
-    Serial.println(actualTemperature);
+
     vTaskDelay(xDelay);
   }
   vTaskDelete(NULL);
@@ -144,23 +168,16 @@ static void air_quality_task_handler(void *pvParameters)
       lastAirMeasure = actualAirMeasure;
     }
 
-    Serial.println(actualAirMeasure);
+
 
     vTaskDelay(xDelay);
   }
   vTaskDelete(NULL);
 }
 
-/**
- * @brief Rotation pot task handler. Read the target temperature.
- * 
- */
-static void temp_task_handler(void *pvParameters)
-{
-}
 
 /**
- * @brief Presence task handler. Read the target temperature.
+ * @brief Presence task handler. 
  * 
  */
 static void presence_task_handler(void *pvParameters)
@@ -174,6 +191,7 @@ static void presence_task_handler(void *pvParameters)
     send_sensor_msg(PRESENCE_PIN, digitalRead(PRESENCE_PIN));
   }
 }
+
 /**
  * @brief Light quantity Task Handler
  * 
@@ -200,10 +218,7 @@ static void light_quantity_task_handler(void *pvParameters)
       lastLightQuantity = actualLightQuantity;
 
       // Mandamos el mensaje
-      SensorDataMsg lightQuantityMsg;
-      lightQuantityMsg.pin = LDR_PIN;
-      lightQuantityMsg.value = actualLightQuantity;
-      xQueueSend(s_sensorDataQueue, (void *)&lightQuantityMsg, (TickType_t)0);
+      send_sensor_msg(LDR_PIN, actualLightQuantity);
     }
 
     Serial.println(actualLightQuantity);
@@ -223,27 +238,33 @@ static void send_sensor_msg(int sensorPin, int value)
 
 void setup()
 {
+  delay(2000);
+
   Serial.begin(115200);
   pinMode(PRESENCE_PIN, INPUT);
   pinMode(LDR_PIN, INPUT);
 
   // Sensor initialization
   dht.begin();
-  delay(2000);
 
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
   s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
   attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
 
   xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
-  // xTaskCreatePinnedToCore(temp_task_handler, "tempPotTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(presence_task_handler, "presencePotTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
+  // Tarea para envío de mensajes a mqtt entorno
+  // Tarea para envío de mensajes a mqtt presencia 
+  // Tarea para envío de mensajes a mqtt emergencia
+  // Tarea para recibir de mensajes a mqtt acción
+
 }
 
 void loop()
 {
   // Do Nothing
 }
+

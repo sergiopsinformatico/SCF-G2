@@ -1,7 +1,7 @@
 // Pines
 #define ALARM_BUTTON_PIN D2
 #define PRESENCE_PIN D9
-#define PRESENCE_READ_PERIOD 500
+#define PRESENCE_READ_PERIOD 1000
 #define TEMPERATURE_SENSOR_PIN D4
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
@@ -32,6 +32,18 @@ typedef struct
     int pin;   /*!< Sensor pin */
     int value; /*!< Value readed */
 } ActuatorDataMsg;
+
+/**
+ * Actuator data message.
+ * 
+ */
+typedef struct
+{
+    int lightLevel;   
+    float temperature;
+    float humidity;
+    int airQuality;
+} EnvironmentTopicMsg;
 
 // Funciones
 static void main_task_handler(void *pvParameters);
