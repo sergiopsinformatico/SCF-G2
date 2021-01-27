@@ -4,10 +4,13 @@
 #define PRESENCE_READ_PERIOD 500
 #define TEMPERATURE_SENSOR_PIN D4
 #define MQ_SENSOR_PIN A3
+#define LDR_PIN A2
+
 
 // Rangos
 #define AIR_QUALITY_THRESHOLD 3500
 #define TEMPERATURE_THRESHOLD 1
+#define LIGHT_QUANTITY_THRESHOLD 100
 
 // Structs
 /**
@@ -36,3 +39,4 @@ static void temp_task_handler(void *pvParameters);
 static void send_sensor_msg(int sensorPin, int value);
 static void temperature_task_handler(void *pvParameters);
 static void air_quality_task_handler(void *pvParameters);
+static void light_quantity_task_handler(void *pvParameters);

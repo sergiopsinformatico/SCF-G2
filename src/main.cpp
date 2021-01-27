@@ -174,6 +174,45 @@ static void presence_task_handler(void *pvParameters)
     send_sensor_msg(PRESENCE_PIN, digitalRead(PRESENCE_PIN));
   }
 }
+/**
+ * @brief Light quantity Task Handler
+ * 
+ */
+static void light_quantity_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
+  const int R_DARKNESS = 1000;
+  const int R_LIGHT = 15;
+  const int R_CALIBRATION = 10;
+
+  float lastLightQuantity = 0;
+  bool firstExecution = true;
+  for (;;)
+  {
+
+    // Tomamos la medida de la cantidad de luz
+    int actualLightQuantity = analogRead(LDR_PIN);
+    actualLightQuantity = ((long)actualLightQuantity*R_DARKNESS*10)/((long)R_LIGHT*R_CALIBRATION*(1024-actualLightQuantity));
+    // Si es la primera ejecucion o la diferencia es mayor al limite
+    if (firstExecution || abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
+    {
+      firstExecution = false;
+      lastLightQuantity = actualLightQuantity;
+
+      // Mandamos el mensaje
+      SensorDataMsg lightQuantityMsg;
+      lightQuantityMsg.pin = LDR_PIN;
+      // Se multiplica la temperatura por 100 y se convierte a entero
+      lightQuantityMsg.value = (int)(actualLightQuantity * 100);
+      xQueueSend(s_sensorDataQueue, (void *)&lightQuantityMsg, (TickType_t)0);
+    }
+
+    Serial.println(actualLightQuantity);
+    vTaskDelay(xDelay);
+  }
+  vTaskDelete(NULL);
+}
+
 
 static void send_sensor_msg(int sensorPin, int value)
 {
@@ -187,6 +226,7 @@ void setup()
 {
   Serial.begin(115200);
   pinMode(PRESENCE_PIN, INPUT);
+  pinMode(LDR_PIN, INPUT);
 
   // Sensor initialization
   dht.begin();
@@ -201,6 +241,7 @@ void setup()
   xTaskCreatePinnedToCore(presence_task_handler, "presencePotTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
 }
 
 void loop()
