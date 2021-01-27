@@ -36,14 +36,15 @@ static void main_task_handler(void *pvParameters)
     vTaskDelayUntil(&xLastWakeTime, 50 / portTICK_RATE_MS);
     xLastWakeTime = xTaskGetTickCount();
     // Se lee de la cola de sensores
-    EnvironmentTopicMsg envMsg ;
+    EnvironmentTopicMsg envMsg;
     if (xQueueReceive(s_sensorDataQueue, &currentPinRead, portMAX_DELAY) == pdPASS)
     {
       // En función del tipo de msg
       switch (currentPinRead.pin)
       {
       case PRESENCE_PIN:
-        if(presence != currentPinRead.value) {
+        if (presence != currentPinRead.value)
+        {
           presence = currentPinRead.value;
           presenceChange = true;
         }
@@ -65,16 +66,17 @@ static void main_task_handler(void *pvParameters)
       }
     }
 
-
     // TODO Si han variado una o más condiciones se
     // crea el mensaje para topic de salida
-    if(presenceChange) {
+    if (presenceChange)
+    {
       presenceChange = false;
       Serial.print("PRESENCE ");
       Serial.println(currentPinRead.value);
     }
 
-    if(envChange) {
+    if (envChange)
+    {
       envChange = false;
       Serial.print("Env: Temp ");
       Serial.print(envMsg.temperature);
@@ -97,7 +99,7 @@ static void temperature_task_handler(void *pvParameters)
   bool firstExecution = true;
   for (;;)
   {
-
+    vTaskDelay(xDelay);
     // Tomamos la temperatura
     float actualTemperature = dht.readTemperature();
 
@@ -108,15 +110,8 @@ static void temperature_task_handler(void *pvParameters)
       lastTemperature = actualTemperature;
 
       // Mandamos el mensaje
-      SensorDataMsg temperatureMsg;
-      temperatureMsg.pin = TEMPERATURE_SENSOR_PIN;
-      // Se multiplica la temperatura por 100 y se convierte a entero
-      temperatureMsg.value = (int)(actualTemperature * 100);
-      xQueueSend(s_sensorDataQueue, (void *)&temperatureMsg, (TickType_t)0);
+      send_sensor_msg(TEMPERATURE_SENSOR_PIN, (int)(actualTemperature * 100));
     }
-
-
-    vTaskDelay(xDelay);
   }
   vTaskDelete(NULL);
 }
@@ -132,7 +127,7 @@ static void air_quality_task_handler(void *pvParameters)
   bool firstExecution = true;
   for (;;)
   {
-
+    vTaskDelay(xDelay);
     // Medimos la calidad del aire
     int actualAirMeasure = analogRead(MQ_SENSOR_PIN);
 
@@ -144,11 +139,8 @@ static void air_quality_task_handler(void *pvParameters)
       firstExecution = false;
       lastAirMeasure = actualAirMeasure;
 
-      // Se envia el mensaje
-      SensorDataMsg airMsg;
-      airMsg.pin = MQ_SENSOR_PIN;
-      airMsg.value = actualAirMeasure;
-      xQueueSend(s_sensorDataQueue, (void *)&airMsg, (TickType_t)0);
+      // Mandamos el mensaje
+      send_sensor_msg(MQ_SENSOR_PIN, actualAirMeasure);
     }
     else if (actualAirMeasure <= AIR_QUALITY_THRESHOLD && lastAirMeasure > AIR_QUALITY_THRESHOLD)
     {
@@ -156,25 +148,17 @@ static void air_quality_task_handler(void *pvParameters)
       // mandamos el mensaje para avisar de un cambio de estado
       lastAirMeasure = actualAirMeasure;
 
-      // Se envia el mensaje
-      SensorDataMsg airMsg;
-      airMsg.pin = MQ_SENSOR_PIN;
-      airMsg.value = actualAirMeasure;
-      xQueueSend(s_sensorDataQueue, (void *)&airMsg, (TickType_t)0);
+      // Mandamos el mensaje
+      send_sensor_msg(MQ_SENSOR_PIN, actualAirMeasure);
     }
     else if (actualAirMeasure <= AIR_QUALITY_THRESHOLD)
     {
       // Siempre que el valor sea menor que el limite lo actualizamos
       lastAirMeasure = actualAirMeasure;
     }
-
-
-
-    vTaskDelay(xDelay);
   }
   vTaskDelete(NULL);
 }
-
 
 /**
  * @brief Presence task handler. 
@@ -207,10 +191,10 @@ static void light_quantity_task_handler(void *pvParameters)
   bool firstExecution = true;
   for (;;)
   {
-
+    vTaskDelay(xDelay);
     // Tomamos la medida de la cantidad de luz
     int actualLightQuantity = analogRead(LDR_PIN);
-    actualLightQuantity = ((long)actualLightQuantity*R_DARKNESS*10)/((long)R_LIGHT*R_CALIBRATION*(1024-actualLightQuantity));
+    actualLightQuantity = ((long)actualLightQuantity * R_DARKNESS * 10) / ((long)R_LIGHT * R_CALIBRATION * (1024 - actualLightQuantity));
     // Si es la primera ejecucion o la diferencia es mayor al limite
     if (firstExecution || abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
     {
@@ -222,11 +206,9 @@ static void light_quantity_task_handler(void *pvParameters)
     }
 
     Serial.println(actualLightQuantity);
-    vTaskDelay(xDelay);
   }
   vTaskDelete(NULL);
 }
-
 
 static void send_sensor_msg(int sensorPin, int value)
 {
@@ -247,6 +229,8 @@ void setup()
   // Sensor initialization
   dht.begin();
 
+  delay(1000);
+
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
   s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
   attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
@@ -257,14 +241,12 @@ void setup()
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
   // Tarea para envío de mensajes a mqtt entorno
-  // Tarea para envío de mensajes a mqtt presencia 
+  // Tarea para envío de mensajes a mqtt presencia
   // Tarea para envío de mensajes a mqtt emergencia
   // Tarea para recibir de mensajes a mqtt acción
-
 }
 
 void loop()
 {
   // Do Nothing
 }
-
