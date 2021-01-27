@@ -1,0 +1,45 @@
+<div class="main-content">
+  <div class="container-fluid">
+    <div class="row">
+      <ng-container *ngFor="let room of rooms">
+        <div class="col-lg-6 col-md-12">
+          <div class="card">
+            <div class="card-header card-header-warning">
+              <h4 class="card-title">{{room.id}}</h4>
+            </div>
+            <div class="card-body table-responsive">
+              <table class="table table-hover">
+                <thead class="text-warning">
+                  <th>Sensor</th>
+                  <th>Valor</th>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Luz</td>
+                    <td>{{room.light}}</td>
+                  </tr>
+                  <tr>
+                    <td>Temperatura</td>
+                    <td>{{room.temperature}}C</td>
+                  </tr>
+                  <tr>
+                    <td>Humedad</td>
+                    <td>{{room.humidity}}%</td>
+                  </tr>
+                  <tr>
+                    <td>Calidad del aire</td>
+                    <td>{{room.airQuality}}</td>
+                  </tr>
+                  <tr>
+                    <td>Presencia</td>
+                    <td>{{room.presence ? 'No' : 'Sí'}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
