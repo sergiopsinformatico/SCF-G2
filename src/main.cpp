@@ -202,8 +202,7 @@ static void light_quantity_task_handler(void *pvParameters)
       // Mandamos el mensaje
       SensorDataMsg lightQuantityMsg;
       lightQuantityMsg.pin = LDR_PIN;
-      // Se multiplica la temperatura por 100 y se convierte a entero
-      lightQuantityMsg.value = (int)(actualLightQuantity * 100);
+      lightQuantityMsg.value = actualLightQuantity;
       xQueueSend(s_sensorDataQueue, (void *)&lightQuantityMsg, (TickType_t)0);
     }
 
