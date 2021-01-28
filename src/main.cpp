@@ -42,7 +42,8 @@ static void wifiConnect()
 void mqttConnect() {
   client.setServer(BROKER_IP, BROKER_PORT);
   while (!client.connected()) {
-    Serial.print("MQTT connecting ...");
+    Serial.print("MQTT connecting ... ");
+    Serial.print(BROKER_IP);
 
     if (client.connect("ESP32Client1")) {
       Serial.println("connected");
