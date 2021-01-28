@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+message environmentMessage {
+  optional int32 lightLevel = 1;   
+  optional float temperature = 2;
+  optional float humidity = 3;
+  optional int32 airQuality = 4;    
+}

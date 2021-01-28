@@ -3,6 +3,14 @@
 #include "freertos/task.h"
 #include "main.h"
 #include <DHT.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <PubSubClient.h>
+#include "environment.pb.h"
+
+#include "pb_common.h"
+#include "pb.h"
+#include "pb_encode.h"
 
 // Sensor queue
 static QueueHandle_t s_sensorDataQueue;
@@ -10,6 +18,46 @@ static QueueHandle_t s_sensorDataQueue;
 static QueueHandle_t s_actuatorDataQueue;
 
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT11);
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+static void wifiConnect()
+{
+
+
+  
+  WiFi.begin(SID_WIFI, PIO_PASS);
+  Serial.println(SID_WIFI);
+  Serial.println(PIO_PASS);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi..");
+  }
+
+  Serial.println("Connected to the WiFi network");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+}
+
+
+void mqttConnect() {
+  client.setServer(BROKER_IP, BROKER_PORT);
+  while (!client.connected()) {
+    Serial.print("MQTT connecting ...");
+
+    if (client.connect("ESP32Client1")) {
+      Serial.println("connected");
+    } else {
+      Serial.print("failed, status code =");
+      Serial.print(client.state());
+      Serial.println("try again in 5 seconds");
+
+      delay(5000);  //* Wait 5 seconds before retrying
+    }
+  }
+}
+
 /**
  * @brief Alarm Button Handler
  * 
@@ -26,8 +74,8 @@ static void main_task_handler(void *pvParameters)
 {
 
   int presence = LOW;
-  bool presenceChange = false;
   bool envChange = false;
+  bool presenceChange = false;
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
   for (;;)
@@ -43,11 +91,8 @@ static void main_task_handler(void *pvParameters)
       switch (currentPinRead.pin)
       {
       case PRESENCE_PIN:
-        if (presence != currentPinRead.value)
-        {
-          presence = currentPinRead.value;
-          presenceChange = true;
-        }
+        presence = currentPinRead.value;
+        presenceChange = true;
         break;
       case TEMPERATURE_SENSOR_PIN:
         envChange = true;
@@ -78,12 +123,8 @@ static void main_task_handler(void *pvParameters)
     if (envChange)
     {
       envChange = false;
-      Serial.print("Env: Temp ");
-      Serial.print(envMsg.temperature);
-      Serial.print(" - Light ");
-      Serial.print(envMsg.lightLevel);
-      Serial.print(" - Air ");
-      Serial.println(envMsg.airQuality);
+      client.publish(ENVIRONMENT_TOPIC, "Hello MQTT from ESP32");
+      
     }
   }
 }
@@ -166,14 +207,17 @@ static void air_quality_task_handler(void *pvParameters)
  */
 static void presence_task_handler(void *pvParameters)
 {
-  TickType_t xLastWakeTime;
-  xLastWakeTime = xTaskGetTickCount();
+  int presence = LOW;
   for (;;)
   {
-    vTaskDelayUntil(&xLastWakeTime, PRESENCE_READ_PERIOD / portTICK_RATE_MS);
-    xLastWakeTime = xTaskGetTickCount();
-    send_sensor_msg(PRESENCE_PIN, digitalRead(PRESENCE_PIN));
+    int newPresence = digitalRead(PRESENCE_PIN);
+    if(presence != newPresence) {
+      presence = newPresence;
+      send_sensor_msg(PRESENCE_PIN, presence);
+    }
+    vTaskDelay(PRESENCE_READ_PERIOD / portTICK_RATE_MS);
   }
+  vTaskDelete(NULL);
 }
 
 /**
@@ -230,6 +274,10 @@ void setup()
   dht.begin();
 
   delay(1000);
+  #ifdef PIO_WIFI
+    wifiConnect();
+  #endif
+  mqttConnect();
 
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
   s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
@@ -240,6 +288,7 @@ void setup()
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
+
   // Tarea para envío de mensajes a mqtt entorno
   // Tarea para envío de mensajes a mqtt presencia
   // Tarea para envío de mensajes a mqtt emergencia
@@ -249,4 +298,5 @@ void setup()
 void loop()
 {
   // Do Nothing
+  // TODO 
 }
