@@ -1,7 +1,7 @@
 // Pines
 #define ALARM_BUTTON_PIN D2
 #define PRESENCE_PIN D9
-#define PRESENCE_READ_PERIOD 1000
+#define PRESENCE_READ_PERIOD 500
 #define TEMPERATURE_SENSOR_PIN D4
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
@@ -10,7 +10,7 @@
 // Rangos
 #define AIR_QUALITY_THRESHOLD 3500
 #define TEMPERATURE_THRESHOLD 1
-#define LIGHT_QUANTITY_THRESHOLD 100
+#define LIGHT_QUANTITY_THRESHOLD 1000
 
 #define SID_WIFI PIO_WIFI 
 #define ENVIRONMENT_TOPIC "/1/1/bedroom/1/environment"
@@ -61,5 +61,3 @@ static void air_quality_task_handler(void *pvParameters);
 static void light_quantity_task_handler(void *pvParameters);
 static void wifiConnect();
 
-static const char* ssid = "IoTnet";
-static const char* password = "darksecret";
