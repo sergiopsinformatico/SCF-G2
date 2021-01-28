@@ -17,22 +17,20 @@ static QueueHandle_t s_sensorDataQueue;
 // Actuator queue
 static QueueHandle_t s_actuatorDataQueue;
 
+static bool s_alarm = false;
+
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT11);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 static void wifiConnect()
 {
-
-
-  
   WiFi.begin(SID_WIFI, PIO_PASS);
-  Serial.println(SID_WIFI);
-  Serial.println(PIO_PASS);
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.println("Connecting to WiFi..");
+    Serial.print ("Connecting to WiFi... status ");
+    Serial.println(WiFi.status());
   }
 
   Serial.println("Connected to the WiFi network");
@@ -64,6 +62,8 @@ void mqttConnect() {
  */
 static void IRAM_ATTR alarm_button_handler()
 {
+  s_alarm = true;
+  Serial.println("ALARM!!");
 }
 
 /**
@@ -96,7 +96,7 @@ static void main_task_handler(void *pvParameters)
         break;
       case TEMPERATURE_SENSOR_PIN:
         envChange = true;
-        envMsg.temperature = currentPinRead.value / 10;
+        envMsg.temperature = currentPinRead.value / 100;
         break;
       case MQ_SENSOR_PIN:
         envChange = true;
@@ -111,19 +111,32 @@ static void main_task_handler(void *pvParameters)
       }
     }
 
+    if(s_alarm) {
+      Serial.println("ALARM!");
+    }
+
     // TODO Si han variado una o más condiciones se
     // crea el mensaje para topic de salida
     if (presenceChange)
     {
       presenceChange = false;
       Serial.print("PRESENCE ");
-      Serial.println(currentPinRead.value);
+      Serial.println(presence);
     }
 
     if (envChange)
     {
       envChange = false;
       client.publish(ENVIRONMENT_TOPIC, "Hello MQTT from ESP32");
+      Serial.println("Environment change");
+      Serial.print("AirQuality ");
+      Serial.println(envMsg.airQuality);
+      Serial.print("Humidity ");
+      Serial.println(envMsg.humidity);
+      Serial.print("LightLevel ");
+      Serial.println(envMsg.lightLevel);
+      Serial.print("Temperature ");
+      Serial.println(envMsg.temperature);
       
     }
   }
@@ -136,22 +149,19 @@ static void main_task_handler(void *pvParameters)
 static void temperature_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
-  float lastTemperature = 0;
-  bool firstExecution = true;
+  float lastTemperature = -100;
   for (;;)
   {
     vTaskDelay(xDelay);
     // Tomamos la temperatura
-    float actualTemperature = dht.readTemperature();
-
-    // Si es la primera ejecucion o la diferencia es mayor al limite
-    if (firstExecution || abs(actualTemperature - lastTemperature) > TEMPERATURE_THRESHOLD)
+    float currentTemperature = dht.readTemperature();
+    if (!isnan(currentTemperature) && (currentTemperature - lastTemperature) > TEMPERATURE_THRESHOLD)
     {
-      firstExecution = false;
-      lastTemperature = actualTemperature;
-
+      lastTemperature = currentTemperature;
       // Mandamos el mensaje
-      send_sensor_msg(TEMPERATURE_SENSOR_PIN, (int)(actualTemperature * 100));
+      Serial.print("Temp");
+      Serial.println(currentTemperature);
+      send_sensor_msg(TEMPERATURE_SENSOR_PIN, (int)(currentTemperature * 100));
     }
   }
   vTaskDelete(NULL);
@@ -211,6 +221,8 @@ static void presence_task_handler(void *pvParameters)
   for (;;)
   {
     int newPresence = digitalRead(PRESENCE_PIN);
+    Serial.print("newPresence ");
+    Serial.println(newPresence);
     if(presence != newPresence) {
       presence = newPresence;
       send_sensor_msg(PRESENCE_PIN, presence);
@@ -227,29 +239,25 @@ static void presence_task_handler(void *pvParameters)
 static void light_quantity_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
-  const int R_DARKNESS = 1000;
-  const int R_LIGHT = 15;
-  const int R_CALIBRATION = 10;
+  // const int R_DARKNESS = 1000;
+  // const int R_LIGHT = 15;
+  // const int R_CALIBRATION = 10;
 
-  float lastLightQuantity = 0;
-  bool firstExecution = true;
+  int lastLightQuantity = 10000;
+
   for (;;)
   {
     vTaskDelay(xDelay);
     // Tomamos la medida de la cantidad de luz
     int actualLightQuantity = analogRead(LDR_PIN);
-    actualLightQuantity = ((long)actualLightQuantity * R_DARKNESS * 10) / ((long)R_LIGHT * R_CALIBRATION * (1024 - actualLightQuantity));
+    // actualLightQuantity = ((long)actualLightQuantity * R_DARKNESS * 10) / ((long)R_LIGHT * R_CALIBRATION * (1024 - actualLightQuantity));
     // Si es la primera ejecucion o la diferencia es mayor al limite
-    if (firstExecution || abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
+    if (abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
     {
-      firstExecution = false;
       lastLightQuantity = actualLightQuantity;
-
       // Mandamos el mensaje
       send_sensor_msg(LDR_PIN, actualLightQuantity);
     }
-
-    Serial.println(actualLightQuantity);
   }
   vTaskDelete(NULL);
 }
@@ -269,6 +277,7 @@ void setup()
   Serial.begin(115200);
   pinMode(PRESENCE_PIN, INPUT);
   pinMode(LDR_PIN, INPUT);
+  pinMode(ALARM_BUTTON_PIN, INPUT);
 
   // Sensor initialization
   dht.begin();
