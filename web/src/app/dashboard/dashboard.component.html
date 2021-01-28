@@ -5,34 +5,59 @@
         <div class="col-lg-6 col-md-12">
           <div class="card">
             <div class="card-header card-header-warning">
-              <h4 class="card-title">{{room.id}}</h4>
+              <h4 class="card-title">{{ room.nodeName }}</h4>
             </div>
             <div class="card-body table-responsive">
               <table class="table table-hover">
                 <thead class="text-warning">
                   <th>Sensor</th>
                   <th>Valor</th>
+                  <th></th>
                 </thead>
                 <tbody>
                   <tr>
+                    <td>¿Emergencia?</td>
+                    <td
+                      *ngIf="room.emergency"
+                      style="color: red; font-weight: bold"
+                    >
+                      Emergencia en curso
+                    </td>
+                    <td
+                      *ngIf="!room.emergency"
+                      style="color: green; font-weight: bold"
+                    >
+                      No hay emergencias
+                    </td>
+                    <td *ngIf="room.emergency">
+                      <button class="button-3d" (click)="attendEmergency(room.nodeId)">Atendida</button>
+                    </td>
+                    <td *ngIf="!room.emergency"></td>
+                  </tr>
+                  <tr>
                     <td>Luz</td>
-                    <td>{{room.light}}</td>
+                    <td>{{ room.light }}</td>
+                    <td></td>
                   </tr>
                   <tr>
                     <td>Temperatura</td>
-                    <td>{{room.temperature}}C</td>
+                    <td>{{ room.temperature }}C</td>
+                    <td></td>
                   </tr>
                   <tr>
                     <td>Humedad</td>
-                    <td>{{room.humidity}}%</td>
+                    <td>{{ room.humidity }}%</td>
+                    <td></td>
                   </tr>
                   <tr>
                     <td>Calidad del aire</td>
-                    <td>{{room.airQuality}}</td>
+                    <td>{{ room.airQuality }}</td>
+                    <td></td>
                   </tr>
                   <tr>
                     <td>Presencia</td>
-                    <td>{{room.presence ? 'No' : 'Sí'}}</td>
+                    <td>{{ room.presence ? "No" : "Sí" }}</td>
+                    <td></td>
                   </tr>
                 </tbody>
               </table>

@@ -1,64 +1,90 @@
+import { isDefined } from "@angular/compiler/src/util";
 import { Component, OnInit } from "@angular/core";
+import { IRoom, RoomsService } from "app/services/rooms.service";
+import { of } from "rxjs";
 
-export interface IRoom {
-  readonly id: string;
-  light: number;
-  temperature: number;
-  humidity: number;
-  airQuality: number;
-  presence: boolean;
-}
 @Component({
   selector: "app-dashboard",
   templateUrl: "./dashboard.component.html",
   styleUrls: ["./dashboard.component.css"],
 })
 export class DashboardComponent implements OnInit {
-  constructor() {}
+  constructor(private roomsService: RoomsService) {}
 
+  private audio = new Audio();
   rooms: IRoom[] = [];
   ngOnInit() {
-    for (let i = 0; i < 20; i++) {
-      this.rooms.push({
-        id: "Habitación " + i,
-        light: 0,
-        temperature: 0,
-        humidity: 0,
-        airQuality: 0,
-        presence: false,
-      });
-    }
+    this.audio.src = "http://www.soundjay.com/button/beep-06.wav";
+    this.audio.load();
+
     this.updateInfo();
   }
 
   async updateInfo(): Promise<void> {
     while (true) {
+      const downloadedRooms = await this.roomsService.getRooms("residencia");
+      for (const room of downloadedRooms.rooms) {
+        const existentRoom = this.rooms.find((r) => r.nodeId === room.nodeId);
+
+        if (!existentRoom) {
+          this.rooms.push(room);
+        } else {
+          existentRoom.light = isDefined(room.light)
+            ? room.light
+            : existentRoom.light;
+          existentRoom.temperature = isDefined(room.temperature)
+            ? room.temperature
+            : existentRoom.temperature;
+          existentRoom.humidity = isDefined(room.humidity)
+            ? room.humidity
+            : existentRoom.humidity;
+          existentRoom.airQuality = isDefined(room.airQuality)
+            ? room.airQuality
+            : existentRoom.airQuality;
+          existentRoom.presence = isDefined(room.presence)
+            ? room.presence
+            : existentRoom.presence;
+          existentRoom.emergency = isDefined(room.emergency)
+            ? room.emergency
+            : existentRoom.emergency;
+        }
+      }
+      this.rooms.sort((a, b) =>
+        a.emergency === true && b.emergency === false ? -1 : 1
+      );
+      let playSound = false;
+      for (let room of this.rooms) {
+        if (room.emergency) {
+          playSound = true;
+        }
+      }
+
+      if (playSound) {
+        this.playAudio();
+      }
       await this.delay(2000);
-      for (const room of this.rooms) {
-        this.updateRoom(room.id);
+    }
+  }
+
+  async playAudio(): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      if (this.audio) {
+        this.audio.play();
+        await this.delay(500);
       }
     }
   }
 
-  private updateRoom(roomId: string): void {
-    const room = this.rooms.find((r) => r.id === roomId);
-    if (room) {
-      // Llamar al servidor y esas cosas
-      room.light = this.randomNumber(1000, 4095, 1);
-      room.humidity = this.randomNumber(0, 100, 100);
-      room.airQuality = this.randomNumber(1000, 4095, 1);
-      room.temperature = this.randomNumber(0, 100, 100);
+  attendEmergency(roomId: string) {
+    const existentRoom = this.rooms.find((r) => r.nodeId === roomId);
+    if (existentRoom) {
+      existentRoom.emergency = false;
+      this.rooms.sort((a, b) =>
+        a.emergency === true && b.emergency === false ? -1 : 1
+      );
     }
   }
 
-  private randomNumber(min: number, max: number, precision: number): number {
-    return (
-      Math.floor(
-        Math.random() * (max * precision - min * precision) + min * precision
-      ) /
-      (1 * precision)
-    );
-  }
   async delay(ms: number): Promise<PromiseConstructor> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
