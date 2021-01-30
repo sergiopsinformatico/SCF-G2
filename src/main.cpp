@@ -79,11 +79,8 @@ static void send_environment_mqtt(EnvironmentTopicMsg msg) {
   Serial.println(msg.temperature);
   uint8_t buffer[500];
 
-  Serial.println(F("1"));
   environmentMessage message = environmentMessage_init_zero;
-Serial.println(F("2"));
   pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-Serial.println(F("3"));
   message.airQuality = 100;
   message.has_airQuality = true;
   message.lightLevel = 1000;
@@ -92,17 +89,13 @@ Serial.println(F("3"));
   //message.f = 0.5;
   //strcpy(message.message, F("Hello Protobuf!"));
  // message.op = 0x48656c6c;
-  Serial.println(F("5"));
   bool status = pb_encode(&stream, environmentMessage_fields, &message);
-Serial.println(F("6"));
   if (!status)
   {
       Serial.println(F("Failed to encode"));
       return;
   }
-  Serial.println(F("7"));
   client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
-  Serial.println(F("8"));
 }
 
 /**
