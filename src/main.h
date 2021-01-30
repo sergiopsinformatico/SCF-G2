@@ -53,7 +53,6 @@ typedef struct
 
 // Funciones
 static void main_task_handler(void *pvParameters);
-static void temp_task_handler(void *pvParameters);
 static void send_sensor_msg(int sensorPin, int value);
 static void temperature_task_handler(void *pvParameters);
 static void air_quality_task_handler(void *pvParameters);

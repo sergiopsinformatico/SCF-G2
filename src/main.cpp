@@ -16,8 +16,18 @@
 static QueueHandle_t s_sensorDataQueue;
 // Actuator queue
 static QueueHandle_t s_actuatorDataQueue;
+// static QueueHandle_t s_tempQueue;
+// static QueueHandle_t s_airQueue;
+// static QueueHandle_t s_lightQueue;
+
 
 static bool s_alarm = false;
+static bool s_presence = false;
+static float s_temperature = -1;
+static int s_lightLevel = -1;
+static int s_airQuality = -1;
+static float s_humidity = -1;
+
 
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT11);
 WiFiClient espClient;
@@ -67,36 +77,28 @@ static void IRAM_ATTR alarm_button_handler()
 }
 
 
-static void send_environment_mqtt(EnvironmentTopicMsg msg) {
-  Serial.println(F("Environment change"));
-  Serial.print(F("AirQuality"));
-  Serial.println(msg.airQuality);
-  Serial.print(F("Humidity "));
-  Serial.println(msg.humidity);
-  Serial.print(F("LightLevel "));
-  Serial.println(msg.lightLevel);
-  Serial.print(F("Temperature "));
-  Serial.println(msg.temperature);
-  uint8_t buffer[500];
+// static void send_environment_mqtt(EnvironmentTopicMsg msg) {
 
-  environmentMessage message = environmentMessage_init_zero;
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-  message.airQuality = 100;
-  message.has_airQuality = true;
-  message.lightLevel = 1000;
-  message.has_lightLevel = true;
-  Serial.println(F("4"));
-  //message.f = 0.5;
-  //strcpy(message.message, F("Hello Protobuf!"));
- // message.op = 0x48656c6c;
-  bool status = pb_encode(&stream, environmentMessage_fields, &message);
-  if (!status)
-  {
-      Serial.println(F("Failed to encode"));
-      return;
-  }
-  client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
-}
+//   uint8_t buffer[500];
+
+//   environmentMessage message = environmentMessage_init_zero;
+//   pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+//   message.airQuality = 100;
+//   message.has_airQuality = true;
+//   message.lightLevel = 1000;
+//   message.has_lightLevel = true;
+
+//   //message.f = 0.5;
+//   //strcpy(message.message, F("Hello Protobuf!"));
+//  // message.op = 0x48656c6c;
+//   bool status = pb_encode(&stream, environmentMessage_fields, &message);
+//   if (!status)
+//   {
+//       Serial.println(F("Failed to encode"));
+//       return;
+//   }
+//   client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+// }
 
 /**
  * @brief Main Task Handler
@@ -104,10 +106,6 @@ static void send_environment_mqtt(EnvironmentTopicMsg msg) {
  */
 static void main_task_handler(void *pvParameters)
 {
-
-  int presence = LOW;
-  bool envChange = false;
-  bool presenceChange = false;
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
   for (;;)
@@ -116,27 +114,22 @@ static void main_task_handler(void *pvParameters)
     vTaskDelayUntil(&xLastWakeTime, 50 / portTICK_RATE_MS);
     xLastWakeTime = xTaskGetTickCount();
     // Se lee de la cola de sensores
-    EnvironmentTopicMsg envMsg;
     if (xQueueReceive(s_sensorDataQueue, &currentPinRead, portMAX_DELAY) == pdPASS)
     {
       // En función del tipo de msg
       switch (currentPinRead.pin)
       {
       case PRESENCE_PIN:
-        presence = currentPinRead.value;
-        presenceChange = true;
+        s_presence = currentPinRead.value;
         break;
       case TEMPERATURE_SENSOR_PIN:
-        envChange = true;
-        envMsg.temperature = currentPinRead.value / 100;
+        s_temperature = currentPinRead.value / 100;
         break;
       case MQ_SENSOR_PIN:
-        envChange = true;
-        envMsg.airQuality = currentPinRead.value;
+        s_airQuality = currentPinRead.value;
         break;
       case LDR_PIN:
-        envChange = true;
-        envMsg.lightLevel = currentPinRead.value;
+        s_lightLevel = currentPinRead.value;
         break;
       default:
         break;
@@ -144,22 +137,22 @@ static void main_task_handler(void *pvParameters)
     }
 
   
-    // TODO Si han variado una o más condiciones se
-    // crea el mensaje para topic de salida
-    if (presenceChange)
-    {
-      presenceChange = false;
-      Serial.print(F("PRESENCE "));
-      Serial.println(presence);
-    }
+    // // TODO Si han variado una o más condiciones se
+    // // crea el mensaje para topic de salida
+    // if (presenceChange)
+    // {
+    //   presenceChange = false;
+    //   Serial.print(F("PRESENCE "));
+    //   Serial.println(presence);
+    // }
 
-    if (envChange)
-    {
-      envChange = false;
-      Serial.println(F("Sending mqtt"));
-      send_environment_mqtt(envMsg);
+    // if (envChange)
+    // {
+    //   envChange = false;
+    //   Serial.println(F("Sending mqtt"));
+    //   send_environment_mqtt(envMsg);
       
-    }
+    // }
   }
   vTaskDelete(NULL);
 }
@@ -181,8 +174,6 @@ static void temperature_task_handler(void *pvParameters)
     {
       lastTemperature = currentTemperature;
       // Mandamos el mensaje
-      Serial.print(F("Temp"));
-      Serial.println(currentTemperature);
       send_sensor_msg(TEMPERATURE_SENSOR_PIN, (int)(currentTemperature * 100));
     }
   }
@@ -292,8 +283,80 @@ static void send_sensor_msg(int sensorPin, int value)
 }
 
 static void IRAM_ATTR pir_interrupt_handler() {
-  Serial.println(F("PIR INTERRUPT"));
-  send_sensor_msg(PRESENCE_PIN, HIGH);
+  Serial.println(F("PIR INTERRUPT CHANGE"));
+  int newPresence = digitalRead(PRESENCE_PIN);
+  send_sensor_msg(PRESENCE_PIN, newPresence);
+}
+
+void debug_print(environmentMessage message) {
+  Serial.println(F("\nEnvironment change"));
+  if(message.airQuality != -1) {
+    Serial.print(F("AirQuality"));
+    Serial.println(message.airQuality);
+  }
+  if(message.humidity != -1) {
+    Serial.print(F("Humidity "));
+    Serial.println(message.humidity);
+  }
+  if(message.lightLevel != -1) {
+    Serial.print(F("LightLevel "));
+    Serial.println(message.lightLevel);
+  }
+  if(message.temperature != -1) {
+    Serial.print(F("Temperature "));
+    Serial.println(message.temperature); 
+  }
+}
+
+static environmentMessage load_environment_message() {
+   // Creates empty message
+  environmentMessage message = environmentMessage_init_zero;
+  
+  // Load data
+  message.airQuality = s_airQuality;
+  message.has_airQuality = s_airQuality != -1;
+  
+  message.humidity = s_humidity;
+  message.has_humidity = s_humidity != -1;
+  
+  message.temperature = s_temperature ;
+  message.has_temperature = s_temperature != -1;
+  
+  message.lightLevel= s_lightLevel;
+  message.has_lightLevel= s_lightLevel != -1;
+
+  return message;
+}
+
+/**
+ * @brief This task sends environment messages only if it's necessary .
+ */ 
+static void environment_send_task_handler(void *pvParameters) {
+
+  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
+
+  for (;;) {
+    vTaskDelay(xDelay);
+    // Load environment message
+    environmentMessage message = load_environment_message();
+
+    // If data loaded sends message
+    if(message.has_airQuality || message.has_humidity || message.has_lightLevel || message.has_temperature) {
+      uint8_t buffer[500];
+      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+      bool status = pb_encode(&stream, environmentMessage_fields, &message);
+      if (!status)
+      {
+          Serial.println(F("Failed to encode"));
+          return;
+      }
+      client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+      debug_print(message);
+    }
+    // Reset message
+    s_lightLevel = s_temperature = s_humidity = s_airQuality = -1;
+  }
+  vTaskDelete(NULL);
 }
 
 void setup()
@@ -316,14 +379,20 @@ void setup()
 
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
   s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
-  attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler,RISING);
+  // s_tempQueue = xQueueCreate(1, sizeof(float));
+  // s_lightQueue = xQueueCreate(1, sizeof(int));
+  // s_airQueue = xQueueCreate(1, sizeof(int));
 
-  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 2048, NULL, 5, NULL, 0);
+
+  attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler,CHANGE);
+  
+  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
   // xTaskCreatePinnedToCore(presence_task_handler, "presenceTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
 
   // Tarea para envío de mensajes a mqtt entorno
   // Tarea para envío de mensajes a mqtt presencia
@@ -336,3 +405,4 @@ void loop()
   // Do Nothing
   // TODO 
 }
+
