@@ -29,12 +29,12 @@ static void wifiConnect()
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.print ("Connecting to WiFi... status ");
+    Serial.print (F("Connecting to WiFi... status "));
     Serial.println(WiFi.status());
   }
 
-  Serial.println("Connected to the WiFi network");
-  Serial.print("IP Address: ");
+  Serial.println(F("Connected to the WiFi network"));
+  Serial.print(F("IP Address: "));
   Serial.println(WiFi.localIP());
 }
 
@@ -42,15 +42,15 @@ static void wifiConnect()
 void mqttConnect() {
   client.setServer(BROKER_IP, BROKER_PORT);
   while (!client.connected()) {
-    Serial.print("MQTT connecting ... ");
+    Serial.print(F("MQTT connecting ... "));
     Serial.print(BROKER_IP);
 
     if (client.connect("ESP32Client1")) {
-      Serial.println("connected");
+      Serial.println(F("connected"));
     } else {
-      Serial.print("failed, status code =");
+      Serial.print(F("failed, status code ="));
       Serial.print(client.state());
-      Serial.println("try again in 5 seconds");
+      Serial.println(F("try again in 5 seconds"));
 
       delay(5000);  //* Wait 5 seconds before retrying
     }
@@ -64,7 +64,45 @@ void mqttConnect() {
 static void IRAM_ATTR alarm_button_handler()
 {
   s_alarm = true;
-  Serial.println("ALARM!!");
+}
+
+
+static void send_environment_mqtt(EnvironmentTopicMsg msg) {
+  Serial.println(F("Environment change"));
+  Serial.print(F("AirQuality"));
+  Serial.println(msg.airQuality);
+  Serial.print(F("Humidity "));
+  Serial.println(msg.humidity);
+  Serial.print(F("LightLevel "));
+  Serial.println(msg.lightLevel);
+  Serial.print(F("Temperature "));
+  Serial.println(msg.temperature);
+  uint8_t buffer[500];
+
+  Serial.println(F("1"));
+  environmentMessage message = environmentMessage_init_zero;
+Serial.println(F("2"));
+  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+Serial.println(F("3"));
+  message.airQuality = 100;
+  message.has_airQuality = true;
+  message.lightLevel = 1000;
+  message.has_lightLevel = true;
+  Serial.println(F("4"));
+  //message.f = 0.5;
+  //strcpy(message.message, F("Hello Protobuf!"));
+ // message.op = 0x48656c6c;
+  Serial.println(F("5"));
+  bool status = pb_encode(&stream, environmentMessage_fields, &message);
+Serial.println(F("6"));
+  if (!status)
+  {
+      Serial.println(F("Failed to encode"));
+      return;
+  }
+  Serial.println(F("7"));
+  client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+  Serial.println(F("8"));
 }
 
 /**
@@ -112,35 +150,25 @@ static void main_task_handler(void *pvParameters)
       }
     }
 
-    if(s_alarm) {
-      Serial.println("ALARM!");
-    }
-
+  
     // TODO Si han variado una o más condiciones se
     // crea el mensaje para topic de salida
     if (presenceChange)
     {
       presenceChange = false;
-      Serial.print("PRESENCE ");
+      Serial.print(F("PRESENCE "));
       Serial.println(presence);
     }
 
     if (envChange)
     {
       envChange = false;
-      client.publish(ENVIRONMENT_TOPIC, "Hello MQTT from ESP32");
-      Serial.println("Environment change");
-      Serial.print("AirQuality ");
-      Serial.println(envMsg.airQuality);
-      Serial.print("Humidity ");
-      Serial.println(envMsg.humidity);
-      Serial.print("LightLevel ");
-      Serial.println(envMsg.lightLevel);
-      Serial.print("Temperature ");
-      Serial.println(envMsg.temperature);
+      Serial.println(F("Sending mqtt"));
+      send_environment_mqtt(envMsg);
       
     }
   }
+  vTaskDelete(NULL);
 }
 
 /**
@@ -160,7 +188,7 @@ static void temperature_task_handler(void *pvParameters)
     {
       lastTemperature = currentTemperature;
       // Mandamos el mensaje
-      Serial.print("Temp");
+      Serial.print(F("Temp"));
       Serial.println(currentTemperature);
       send_sensor_msg(TEMPERATURE_SENSOR_PIN, (int)(currentTemperature * 100));
     }
@@ -182,7 +210,6 @@ static void air_quality_task_handler(void *pvParameters)
     vTaskDelay(xDelay);
     // Medimos la calidad del aire
     int actualAirMeasure = analogRead(MQ_SENSOR_PIN);
-
     // Si es la primera ejecucion o el valor actual esta por encima del limite y el anterior estaba por debajo
     // (evita mandar mensajes continuamente si nos mantenemos por encima del limite)
     if (firstExecution || (actualAirMeasure > AIR_QUALITY_THRESHOLD && lastAirMeasure <= AIR_QUALITY_THRESHOLD))
@@ -212,26 +239,26 @@ static void air_quality_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
-/**
- * @brief Presence task handler. 
- * 
- */
-static void presence_task_handler(void *pvParameters)
-{
-  int presence = LOW;
-  for (;;)
-  {
-    int newPresence = digitalRead(PRESENCE_PIN);
-    Serial.print("newPresence ");
-    Serial.println(newPresence);
-    if(presence != newPresence) {
-      presence = newPresence;
-      send_sensor_msg(PRESENCE_PIN, presence);
-    }
-    vTaskDelay(PRESENCE_READ_PERIOD / portTICK_RATE_MS);
-  }
-  vTaskDelete(NULL);
-}
+// /**
+//  * @brief Presence task handler. 
+//  * 
+//  */
+// static void presence_task_handler(void *pvParameters)
+// {
+//   int presence = LOW;
+//   for (;;)
+//   {
+//     int newPresence = digitalRead(PRESENCE_PIN);
+//     Serial.print(F("newPresence "));
+//     Serial.println(newPresence);
+//     if(presence != newPresence) {
+//       presence = newPresence;
+//       send_sensor_msg(PRESENCE_PIN, presence);
+//     }
+//     vTaskDelay(PRESENCE_READ_PERIOD / portTICK_RATE_MS);
+//   }
+//   vTaskDelete(NULL);
+// }
 
 /**
  * @brief Light quantity Task Handler
@@ -271,13 +298,18 @@ static void send_sensor_msg(int sensorPin, int value)
   xQueueSend(s_sensorDataQueue, &currentPinRead, portMAX_DELAY);
 }
 
+static void IRAM_ATTR pir_interrupt_handler() {
+  Serial.println(F("PIR INTERRUPT"));
+  send_sensor_msg(PRESENCE_PIN, HIGH);
+}
+
 void setup()
 {
   delay(2000);
 
   Serial.begin(115200);
-  pinMode(PRESENCE_PIN, INPUT);
-  pinMode(LDR_PIN, INPUT);
+  // pinMode(PRESENCE_PIN, INPUT);
+  
   pinMode(ALARM_BUTTON_PIN, INPUT);
 
   // Sensor initialization
@@ -292,9 +324,10 @@ void setup()
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
   s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
   attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler,RISING);
 
-  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(presence_task_handler, "presencePotTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 2048, NULL, 5, NULL, 0);
+  // xTaskCreatePinnedToCore(presence_task_handler, "presenceTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);

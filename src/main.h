@@ -1,7 +1,7 @@
 // Pines
 #define ALARM_BUTTON_PIN D2
 #define PRESENCE_PIN D9
-#define PRESENCE_READ_PERIOD 500
+#define PRESENCE_READ_PERIOD 2000
 #define TEMPERATURE_SENSOR_PIN D4
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
@@ -13,10 +13,9 @@
 #define LIGHT_QUANTITY_THRESHOLD 1000
 
 #define SID_WIFI PIO_WIFI 
-#define ENVIRONMENT_TOPIC "/1/1/bedroom/1/environment"
+#define ENVIRONMENT_TOPIC "1/1/bedroom/1/environment"
 #define PRESENCE_TOPIC "/1/1/bedroom/1/presence"
 #define ALARM_TOPIC "/1/1/bedroom/1/alarm"
-// #define BROKER_IP "192.168.100.2"
 #define BROKER_PORT 2883
 
 // Structs
