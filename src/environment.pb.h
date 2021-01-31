@@ -10,6 +10,10 @@
 #endif
 
 /* Struct definitions */
+typedef struct _alartMessage {
+    bool alarm;
+} alartMessage;
+
 typedef struct _environmentMessage {
     bool has_lightLevel;
     int32_t lightLevel;
@@ -19,6 +23,8 @@ typedef struct _environmentMessage {
     float humidity;
     bool has_airQuality;
     int32_t airQuality;
+    bool has_presence;
+    bool presence;
 } environmentMessage;
 
 
@@ -27,31 +33,44 @@ extern "C" {
 #endif
 
 /* Initializer values for message structs */
-#define environmentMessage_init_default          {false, 0, false, 0, false, 0, false, 0}
-#define environmentMessage_init_zero             {false, 0, false, 0, false, 0, false, 0}
+#define environmentMessage_init_default          {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define alartMessage_init_default                {0}
+#define environmentMessage_init_zero             {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define alartMessage_init_zero                   {0}
 
 /* Field tags (for use in manual encoding/decoding) */
+#define alartMessage_alarm_tag                   1
 #define environmentMessage_lightLevel_tag        1
 #define environmentMessage_temperature_tag       2
 #define environmentMessage_humidity_tag          3
 #define environmentMessage_airQuality_tag        4
+#define environmentMessage_presence_tag          5
 
 /* Struct field encoding specification for nanopb */
 #define environmentMessage_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, INT32,    lightLevel,        1) \
 X(a, STATIC,   OPTIONAL, FLOAT,    temperature,       2) \
 X(a, STATIC,   OPTIONAL, FLOAT,    humidity,          3) \
-X(a, STATIC,   OPTIONAL, INT32,    airQuality,        4)
+X(a, STATIC,   OPTIONAL, INT32,    airQuality,        4) \
+X(a, STATIC,   OPTIONAL, BOOL,     presence,          5)
 #define environmentMessage_CALLBACK NULL
 #define environmentMessage_DEFAULT NULL
 
+#define alartMessage_FIELDLIST(X, a) \
+X(a, STATIC,   REQUIRED, BOOL,     alarm,             1)
+#define alartMessage_CALLBACK NULL
+#define alartMessage_DEFAULT NULL
+
 extern const pb_msgdesc_t environmentMessage_msg;
+extern const pb_msgdesc_t alartMessage_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
 #define environmentMessage_fields &environmentMessage_msg
+#define alartMessage_fields &alartMessage_msg
 
 /* Maximum encoded size of messages (where known) */
-#define environmentMessage_size                  32
+#define environmentMessage_size                  34
+#define alartMessage_size                        2
 
 #ifdef __cplusplus
 } /* extern "C" */

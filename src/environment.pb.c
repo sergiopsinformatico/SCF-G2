@@ -9,4 +9,7 @@
 PB_BIND(environmentMessage, environmentMessage, AUTO)
 
 
+PB_BIND(alartMessage, alartMessage, AUTO)
+
+
 
