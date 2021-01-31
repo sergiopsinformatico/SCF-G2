@@ -50,6 +50,8 @@ static void wifiConnect()
 void mqttConnect()
 {
   client.setServer(BROKER_IP, BROKER_PORT);
+  client.setSocketTimeout(30);
+  client.setKeepAlive(0);
   while (!client.connected())
   {
     Serial.print(F("MQTT connecting ... "));
@@ -296,8 +298,9 @@ static void send_sensor_msg(int sensorPin, int value)
 
 static void IRAM_ATTR pir_interrupt_handler()
 {
-  Serial.println(F("PIR INTERRUPT CHANGE"));
   int newPresence = digitalRead(PRESENCE_PIN);
+  Serial.print(F("PIR INTERRUPT CHANGE "));
+  Serial.println(newPresence);
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
@@ -372,7 +375,10 @@ static void environment_send_task_handler(void *pvParameters)
         Serial.println(F("Failed to encode"));
         return;
       }
-      client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+      
+      bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+      Serial.print(F("MQTT SEND RESULT"));
+      Serial.println(result);
       debug_print(message);
     }
     // Reset message
@@ -394,9 +400,9 @@ void setup()
   dht.begin();
 
   delay(1000);
-#ifdef PIO_WIFI
+  #ifdef PIO_WIFI
   wifiConnect();
-#endif
+  #endif
   mqttConnect();
 
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
