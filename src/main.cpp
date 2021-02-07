@@ -302,7 +302,7 @@ static void IRAM_ATTR pir_interrupt_handler()
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
-void debug_print(environmentMessage message)
+void debug_print(environmentMessage message, bool result)
 {
   Serial.println(F("\nEnvironment change"));
   if (message.has_airQuality)
@@ -332,6 +332,8 @@ void debug_print(environmentMessage message)
   }
   Serial.print("Now millis ");
   Serial.println(millis());
+  Serial.print(F("MQTT SEND RESULT"));
+  Serial.println(result);
 }
 
 static environmentMessage load_environment_message()
@@ -385,9 +387,8 @@ static void environment_send_task_handler(void *pvParameters)
       }
 
       bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
-      Serial.print(F("MQTT SEND RESULT"));
-      Serial.println(result);
-      debug_print(message);
+      debug_print(message, result);
+      
     }
     // Reset message
     s_lightLevel = s_temperature = s_humidity = s_airQuality = s_presence = -1;
