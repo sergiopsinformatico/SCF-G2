@@ -2,7 +2,7 @@
 #define HUMIDITY_SENSOR_PIN A0
 #define TEMPERATURE_SENSOR_PIN D4
 #define SERVO_PIN D5
-#define PRESENCE_PIN D10
+#define PRESENCE_PIN D13
 #define RELAY_PIN D11
 #define ALARM_BUTTON_PIN D12
 #define MQ_SENSOR_PIN A3
@@ -18,8 +18,9 @@
 
 #define SID_WIFI PIO_WIFI 
 #define ENVIRONMENT_TOPIC "1/1/bedroom/1/environment"
-#define PRESENCE_TOPIC "/1/1/bedroom/1/presence"
-#define ALARM_TOPIC "/1/1/bedroom/1/alarm"
+#define PRESENCE_TOPIC "1/1/bedroom/1/presence"
+#define ALARM_TOPIC "1/1/bedroom/1/alarm"
+#define ACTIONS_TOPIC "1/1/bedroom/1/actions"
 #define BROKER_PORT 2883
 
 // Structs

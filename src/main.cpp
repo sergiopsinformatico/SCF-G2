@@ -21,7 +21,7 @@ static QueueHandle_t s_actuatorDataQueue;
 // static QueueHandle_t s_lightQueue;
 
 static bool s_alarm = false;
-static bool s_presence = false;
+static int s_presence = -1;
 static float s_temperature = -1;
 static int s_lightLevel = -1;
 static int s_airQuality = -1;
@@ -74,7 +74,7 @@ void mqttConnect()
 
 /**
  * @brief Alarm Button Handler
- * 
+ *
  */
 static void IRAM_ATTR alarm_button_handler()
 {
@@ -106,7 +106,7 @@ static void IRAM_ATTR alarm_button_handler()
 
 /**
  * @brief Main Task Handler
- * 
+ *
  */
 static void main_task_handler(void *pvParameters)
 {
@@ -165,7 +165,7 @@ static void main_task_handler(void *pvParameters)
 
 /**
  * @brief Temperature Task Handler
- * 
+ *
  */
 static void temperature_task_handler(void *pvParameters)
 {
@@ -196,7 +196,7 @@ static void temperature_task_handler(void *pvParameters)
 
 /**
  * @brief Air quality Task Handler
- * 
+ *
  */
 static void air_quality_task_handler(void *pvParameters)
 {
@@ -237,10 +237,10 @@ static void air_quality_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
-// /**
-//  * @brief Presence task handler.
-//  *
-//  */
+/**
+ * @brief Presence task handler.
+ *
+ */
 // static void presence_task_handler(void *pvParameters)
 // {
 //   int presence = LOW;
@@ -260,7 +260,7 @@ static void air_quality_task_handler(void *pvParameters)
 
 /**
  * @brief Light quantity Task Handler
- * 
+ *
  */
 static void light_quantity_task_handler(void *pvParameters)
 {
@@ -299,34 +299,39 @@ static void send_sensor_msg(int sensorPin, int value)
 static void IRAM_ATTR pir_interrupt_handler()
 {
   int newPresence = digitalRead(PRESENCE_PIN);
-  Serial.print(F("PIR INTERRUPT CHANGE "));
-  Serial.println(newPresence);
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
 void debug_print(environmentMessage message)
 {
   Serial.println(F("\nEnvironment change"));
-  if (message.airQuality != -1)
+  if (message.has_airQuality)
   {
     Serial.print(F("AirQuality"));
     Serial.println(message.airQuality);
   }
-  if (message.humidity != -1)
+  if (message.has_humidity)
   {
     Serial.print(F("Humidity "));
     Serial.println(message.humidity);
   }
-  if (message.lightLevel != -1)
+  if (message.has_lightLevel)
   {
     Serial.print(F("LightLevel "));
     Serial.println(message.lightLevel);
   }
-  if (message.temperature != -1)
+  if (message.has_temperature)
   {
     Serial.print(F("Temperature "));
     Serial.println(message.temperature);
   }
+  if (message.has_presence)
+  {
+    Serial.print(F("Presence "));
+    Serial.println(message.presence);
+  }
+  Serial.print("Now millis ");
+  Serial.println(millis());
 }
 
 static environmentMessage load_environment_message()
@@ -346,6 +351,9 @@ static environmentMessage load_environment_message()
 
   message.lightLevel = s_lightLevel;
   message.has_lightLevel = s_lightLevel != -1;
+  
+  message.presence = s_presence == HIGH;
+  message.has_presence = s_presence != -1;
 
   return message;
 }
@@ -365,7 +373,7 @@ static void environment_send_task_handler(void *pvParameters)
     environmentMessage message = load_environment_message();
 
     // If data loaded sends message
-    if (message.has_airQuality || message.has_humidity || message.has_lightLevel || message.has_temperature)
+    if (message.has_airQuality || message.has_humidity || message.has_lightLevel || message.has_temperature || message.has_presence)
     {
       uint8_t buffer[500];
       pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
@@ -375,14 +383,14 @@ static void environment_send_task_handler(void *pvParameters)
         Serial.println(F("Failed to encode"));
         return;
       }
-      
+
       bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
       Serial.print(F("MQTT SEND RESULT"));
       Serial.println(result);
       debug_print(message);
     }
     // Reset message
-    s_lightLevel = s_temperature = s_humidity = s_airQuality = -1;
+    s_lightLevel = s_temperature = s_humidity = s_airQuality = s_presence = -1;
   }
   vTaskDelete(NULL);
 }
@@ -393,13 +401,12 @@ void setup()
 
   Serial.begin(115200);
   // pinMode(PRESENCE_PIN, INPUT);
-
   pinMode(ALARM_BUTTON_PIN, INPUT);
 
   // Sensor initialization
   dht.begin();
 
-  delay(1000);
+  delay(2000);
   #ifdef PIO_WIFI
   wifiConnect();
   #endif
