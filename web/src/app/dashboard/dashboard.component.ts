@@ -75,13 +75,19 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  attendEmergency(roomId: string) {
+  async attendEmergency(roomId: string) {
     const existentRoom = this.rooms.find((r) => r.nodeId === roomId);
     if (existentRoom) {
-      existentRoom.emergency = false;
-      this.rooms.sort((a, b) =>
-        a.emergency === true && b.emergency === false ? -1 : 1
+      const response = await this.roomsService.disableEmergency(
+        "residencia",
+        roomId
       );
+      if (response && response.response === "OK") {
+        existentRoom.emergency = false;
+        this.rooms.sort((a, b) =>
+          a.emergency === true && b.emergency === false ? -1 : 1
+        );
+      }
     }
   }
 
