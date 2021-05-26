@@ -4,20 +4,30 @@ import { HttpClient } from "@angular/common/http";
 export interface CommonResponse {
   readonly response: string;
 }
-export interface IRoom {
+export interface IRoomData {
   readonly nodeName: string;
   readonly nodeId: string;
-  light: number;
-  temperature: number;
-  humidity: number;
-  airQuality: number;
-  presence: boolean;
-  emergency: boolean;
+  readonly light: number;
+  readonly temperature: number;
+  readonly humidity: number;
+  readonly airQuality: number;
+  readonly presence: boolean;
+}
+
+export interface IRoomEmergency {
+  readonly nodeName: string;
+  readonly nodeId: string;
+  readonly emergency: boolean;
 }
 
 export interface IRoomDto {
   readonly retirement: string;
-  readonly rooms: IRoom[];
+  readonly rooms: IRoomData[];
+}
+
+export interface IRoomEmergencyDto {
+  readonly retirement: string;
+  readonly rooms: IRoomEmergency[];
 }
 
 const NODE_RED_IP = "http://localhost:1880/";
@@ -32,15 +42,9 @@ export class RoomsService {
       .toPromise();
   }
 
-  async disableEmergency(
-    retirement: string,
-    room: string
-  ): Promise<CommonResponse> {
+  async getEmergency(retirement: string): Promise<IRoomEmergencyDto> {
     return this.http
-      .post<CommonResponse>(
-        NODE_RED_IP + "api/emergency/" + retirement + "/" + room,
-        { retirement, room, emergencyStatus: "INACTIVE" }
-      )
+      .get<IRoomEmergencyDto>(NODE_RED_IP + "api/rooms/" + retirement + "/emergency/500")
       .toPromise();
   }
 }
