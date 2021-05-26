@@ -72,6 +72,12 @@ void mqttConnect()
   }
 }
 
+void debug_print_alarm(alartMessage message, bool result)
+{
+  Serial.println(F("\nSending alarm"));
+  Serial.println(result);
+}
+
 /**
  * @brief Alarm Button Handler
  *
@@ -353,7 +359,7 @@ static environmentMessage load_environment_message()
 
   message.lightLevel = s_lightLevel;
   message.has_lightLevel = s_lightLevel != -1;
-  
+
   message.presence = s_presence == HIGH;
   message.has_presence = s_presence != -1;
 
@@ -388,10 +394,40 @@ static void environment_send_task_handler(void *pvParameters)
 
       bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
       debug_print(message, result);
-      
     }
     // Reset message
     s_lightLevel = s_temperature = s_humidity = s_airQuality = s_presence = -1;
+  }
+  vTaskDelete(NULL);
+}
+
+static void alarm_send_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+    if (s_alarm)
+    {
+      s_alarm = false;
+      Serial.print("ALARM");
+      uint8_t buffer[500];
+      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+      // Creates empty message
+      alartMessage message = alartMessage_init_zero;
+      message.alarm = true;
+      bool status = pb_encode(&stream, alartMessage_fields, &message);
+      if (!status)
+      {
+        Serial.println(F("Failed to encode"));
+        return;
+      }
+
+      bool result = client.publish(ALARM_TOPIC, buffer, stream.bytes_written);
+      debug_print_alarm(message, result);
+    }
   }
   vTaskDelete(NULL);
 }
@@ -408,9 +444,9 @@ void setup()
   dht.begin();
 
   delay(2000);
-  #ifdef PIO_WIFI
+#ifdef PIO_WIFI
   wifiConnect();
-  #endif
+#endif
   mqttConnect();
 
   s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
@@ -428,6 +464,7 @@ void setup()
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
+   xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
 
   // Tarea para envío de mensajes a mqtt entorno
   // Tarea para envío de mensajes a mqtt presencia
