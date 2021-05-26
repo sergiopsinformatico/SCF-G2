@@ -5,7 +5,7 @@
         <div class="col-lg-6 col-md-12">
           <div class="card">
             <div class="card-header card-header-warning">
-              <h4 class="card-title">{{ room.nodeName }}</h4>
+              <h4 class="card-title">Room {{ room.idBedroom}}</h4>
             </div>
             <div class="card-body table-responsive">
               <table class="table table-hover">
@@ -18,25 +18,25 @@
                   <tr>
                     <td>¿Emergencia?</td>
                     <td
-                      *ngIf="room.emergency"
+                      *ngIf="room.alarm"
                       style="color: red; font-weight: bold"
                     >
                       Emergencia en curso
                     </td>
                     <td
-                      *ngIf="!room.emergency"
+                      *ngIf="!room.alarm"
                       style="color: green; font-weight: bold"
                     >
                       No hay emergencias
                     </td>
-                    <td *ngIf="room.emergency">
-                      <button class="button-3d" (click)="attendEmergency(room.nodeId)">Atendida</button>
+                    <td *ngIf="room.alarm">
+                      <button class="button-3d" (click)="attendEmergency(room)">Atendida</button>
                     </td>
-                    <td *ngIf="!room.emergency"></td>
+                    <td *ngIf="!room.alarm"></td>
                   </tr>
                   <tr>
                     <td>Luz</td>
-                    <td>{{ room.light }}</td>
+                    <td>{{ room.lightLevel }}</td>
                     <td></td>
                   </tr>
                   <tr>
