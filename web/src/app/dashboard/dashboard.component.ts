@@ -69,8 +69,37 @@ export class DashboardComponent implements OnInit {
             : existentRoom.presence;
         }
       }
-
       await this.delay(2000);
+
+      for (let i = 0; i < 10; i++) {
+        for (const room of this.rooms) {
+          const dwlRooms = await this.roomsService.getRoom(
+            room.idTenant,
+            room.idResidence,
+            room.idBedroom
+          );
+          if (dwlRooms && dwlRooms.rooms) {
+            for (const dwlRoom of dwlRooms.rooms) {
+              room.lightLevel = isDefined(dwlRoom.lightLevel)
+                ? dwlRoom.lightLevel
+                : room.lightLevel;
+              room.temperature = isDefined(dwlRoom.temperature)
+                ? dwlRoom.temperature
+                : room.temperature;
+              room.humidity = isDefined(dwlRoom.humidity)
+                ? dwlRoom.humidity
+                : room.humidity;
+              room.airQuality = isDefined(dwlRoom.airQuality)
+                ? dwlRoom.airQuality
+                : room.airQuality;
+              room.presence = isDefined(dwlRoom.presence)
+                ? dwlRoom.presence
+                : room.presence;
+            }
+          }
+        }
+        await this.delay(2000);
+      }
     }
   }
 
@@ -78,22 +107,28 @@ export class DashboardComponent implements OnInit {
     let playSound: boolean;
     while (true) {
       playSound = false;
-      const downloadedRooms = await this.roomsService.getEmergency("1", "1");
-
-      for (const room of downloadedRooms.rooms) {
-        const existentRoom = this.rooms.find(
-          (r) =>
-            r.idBedroom === room.idBedroom &&
-            r.idResidence === room.idResidence &&
-            r.idTenant === room.idTenant
+      for (const room of this.rooms) {
+        const downloadedRooms = await this.roomsService.getEmergency(
+          room.idTenant,
+          room.idResidence,
+          room.idBedroom
         );
 
-        if (existentRoom) {
-          existentRoom.alarm = room.alarm;
-        }
+        for (const room of downloadedRooms.rooms) {
+          const existentRoom = this.rooms.find(
+            (r) =>
+              r.idBedroom === room.idBedroom &&
+              r.idResidence === room.idResidence &&
+              r.idTenant === room.idTenant
+          );
 
-        if (existentRoom && room.alarm) {
-          playSound = true;
+          if (existentRoom) {
+            existentRoom.alarm = room.alarm;
+          }
+
+          if (existentRoom && room.alarm) {
+            playSound = true;
+          }
         }
       }
       this.rooms.sort((a, b) =>
@@ -103,7 +138,7 @@ export class DashboardComponent implements OnInit {
       if (playSound) {
         this.playAudio();
       }
-      await this.delay(250);
+      await this.delay(1000);
     }
   }
 
@@ -126,6 +161,11 @@ export class DashboardComponent implements OnInit {
 
     if (existentRoom) {
       existentRoom.alarm = false;
+      await this.roomsService.stopEmergency(
+        existentRoom.idTenant,
+        existentRoom.idResidence,
+        existentRoom.idBedroom
+      );
       this.rooms.sort((a, b) =>
         a.alarm === true && b.alarm === false ? -1 : 1
       );

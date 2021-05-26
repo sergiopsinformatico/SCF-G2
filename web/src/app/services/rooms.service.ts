@@ -61,11 +61,63 @@ export class RoomsService {
       )
       .toPromise();
 
-    let rooms: IRoomData[] = this.resultsObjectToDto(returnedObject);
+    if (!returnedObject) {
+      return { rooms: [] };
+    }
 
-    rooms = rooms.sort(function (x, y) {
-      return new Date(x.time).getTime() - new Date(y.time).getTime();
-    });
+    let rooms: IRoomData[] = this.resultsObjectToDto(returnedObject);
+    if (!rooms) {
+      return { rooms: [] };
+    }
+
+    const finalRooms: IRoomData[] = [];
+    for (const room of rooms) {
+      const existentRoom = finalRooms.find(
+        (r) =>
+          r.idBedroom === room.idBedroom &&
+          r.idResidence === room.idResidence &&
+          r.idTenant === room.idTenant
+      );
+
+      if (!existentRoom) {
+        finalRooms.push(room);
+      } else {
+        for (const key in room) {
+          if (!existentRoom[key]) {
+            existentRoom[key] = room[key];
+          }
+        }
+      }
+    }
+
+    return { rooms: finalRooms };
+  }
+
+  async getRoom(
+    idTenant: string,
+    idResidence: string,
+    idBedroom: string
+  ): Promise<IRoomDto> {
+    const returnedObject = await this.http
+      .get<ResultsObject>(
+        NODE_RED_IP +
+          "api/room/" +
+          idTenant +
+          "/" +
+          idResidence +
+          "/" +
+          idBedroom
+      )
+      .toPromise();
+
+    if (!returnedObject) {
+      return { rooms: [] };
+    }
+
+    let rooms: IRoomData[] = this.resultsObjectToDto(returnedObject);
+    if (!rooms) {
+      return { rooms: [] };
+    }
 
     const finalRooms: IRoomData[] = [];
     for (const room of rooms) {
@@ -92,47 +144,101 @@ export class RoomsService {
 
   async getEmergency(
     idTenant: string,
-    idResidence: string
+    idResidence: string,
+    idBedroom: string
   ): Promise<IRoomEmergencyDto> {
     const returnedObject = await this.http
       .get<ResultsObject>(
-        NODE_RED_IP + "api/rooms/emergency/" + idTenant + "/" + idResidence
+        NODE_RED_IP +
+          "api/rooms/emergency/" +
+          idTenant +
+          "/" +
+          idResidence +
+          "/" +
+          idBedroom
       )
       .toPromise();
 
-    let rooms: IRoomEmergency[] = this.resultsObjectToDto(returnedObject);
-    let timeNow: number = new Date().getTime();
-    rooms = rooms.filter((e) => {
-      return timeNow - new Date(e.time).getTime() < 2500
-    });
+    if (!returnedObject) {
+      return { rooms: [] };
+    }
 
-    return { rooms };
+    let rooms: IRoomEmergency[] = this.resultsObjectToDto(returnedObject);
+    if (!rooms) {
+      return { rooms: [] };
+    }
+
+    const stoppedAlarms: IRoomEmergency[] = [];
+
+    for (const room of rooms) {
+      if (!room.alarm) {
+        stoppedAlarms.push(room);
+      }
+    }
+    const finalRooms: IRoomEmergency[] = [];
+    for (const room of rooms) {
+      const existentRoom = stoppedAlarms.find(
+        (r) =>
+          r.idBedroom === room.idBedroom &&
+          r.idResidence === room.idResidence &&
+          r.idTenant === room.idTenant
+      );
+
+      if (!existentRoom) {
+        finalRooms.push(room);
+      }
+    }
+
+    return { rooms: finalRooms };
+  }
+
+  async stopEmergency(
+    idTenant: string,
+    idResidence: string,
+    idBedroom: string
+  ): Promise<void> {
+    await this.http
+      .post<any>(
+        NODE_RED_IP +
+          "api/rooms/stop-alarm/" +
+          idTenant +
+          "/" +
+          idResidence +
+          "/" +
+          idBedroom,
+        {}
+      )
+      .toPromise();
   }
 
   resultsObjectToDto(resultObject: ResultsObject): any[] {
-    if (!resultObject) {
-      return null;
-    }
-    let colums: string[] = [];
-    const allValues: any[] = [];
+    try {
+      if (!resultObject) {
+        return null;
+      }
+      let colums: string[] = [];
+      const allValues: any[] = [];
 
-    for (const result of resultObject.results) {
-      for (const series of result.series) {
-        colums = series.columns;
-        for (const values of series.values) {
-          allValues.push(values);
+      for (const result of resultObject.results) {
+        for (const series of result.series) {
+          colums = series.columns;
+          for (const values of series.values) {
+            allValues.push(values);
+          }
         }
       }
-    }
 
-    const mergedObjects: any[] = [];
-    for (const values of allValues) {
-      let objectToAdd: any = {};
-      for (let i = 0; i < values.length; i++) {
-        objectToAdd[colums[i]] = values[i];
+      const mergedObjects: any[] = [];
+      for (const values of allValues) {
+        let objectToAdd: any = {};
+        for (let i = 0; i < values.length; i++) {
+          objectToAdd[colums[i]] = values[i];
+        }
+        mergedObjects.push(objectToAdd);
       }
-      mergedObjects.push(objectToAdd);
+      return mergedObjects;
+    } catch {
+      return [];
     }
-    return mergedObjects;
   }
 }
