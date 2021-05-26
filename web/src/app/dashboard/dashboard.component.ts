@@ -1,7 +1,21 @@
 import { isDefined } from "@angular/compiler/src/util";
 import { Component, OnInit } from "@angular/core";
-import { IRoom, RoomsService } from "app/services/rooms.service";
-import { of } from "rxjs";
+import {
+  IRoomData,
+  IRoomEmergency,
+  RoomsService,
+} from "app/services/rooms.service";
+
+interface IRoom {
+  readonly nodeName: string;
+  readonly nodeId: string;
+  light: number;
+  temperature: number;
+  humidity: number;
+  airQuality: number;
+  presence: boolean;
+  emergency: boolean;
+}
 
 @Component({
   selector: "app-dashboard",
@@ -13,11 +27,13 @@ export class DashboardComponent implements OnInit {
 
   private audio = new Audio();
   rooms: IRoom[] = [];
+
   ngOnInit() {
-    this.audio.src = "http://www.soundjay.com/button/beep-06.wav";
+    this.audio.src = "https://www.soundjay.com/buttons/button-41.wav";
     this.audio.load();
 
     this.updateInfo();
+    this.updateEmergency();
   }
 
   async updateInfo(): Promise<void> {
@@ -27,7 +43,7 @@ export class DashboardComponent implements OnInit {
         const existentRoom = this.rooms.find((r) => r.nodeId === room.nodeId);
 
         if (!existentRoom) {
-          this.rooms.push(room);
+          this.rooms.push({ ...room, emergency: false });
         } else {
           existentRoom.light = isDefined(room.light)
             ? room.light
@@ -44,25 +60,39 @@ export class DashboardComponent implements OnInit {
           existentRoom.presence = isDefined(room.presence)
             ? room.presence
             : existentRoom.presence;
-          existentRoom.emergency = isDefined(room.emergency)
-            ? room.emergency
-            : existentRoom.emergency;
+        }
+      }
+
+      await this.delay(2000);
+    }
+  }
+
+  async updateEmergency(): Promise<void> {
+    let playSound: boolean;
+    while (true) {
+      playSound = false;
+      const downloadedRooms = await this.roomsService.getEmergency(
+        "residencia"
+      );
+      for (const room of downloadedRooms.rooms) {
+        const existentRoom = this.rooms.find((r) => r.nodeId === room.nodeId);
+
+        if (existentRoom) {
+          existentRoom.emergency = room.emergency;
+        }
+
+        if (existentRoom && room.emergency) {
+          playSound = true;
         }
       }
       this.rooms.sort((a, b) =>
         a.emergency === true && b.emergency === false ? -1 : 1
       );
-      let playSound = false;
-      for (let room of this.rooms) {
-        if (room.emergency) {
-          playSound = true;
-        }
-      }
 
       if (playSound) {
         this.playAudio();
       }
-      await this.delay(2000);
+      await this.delay(1000);
     }
   }
 
@@ -75,7 +105,7 @@ export class DashboardComponent implements OnInit {
     }
   }
 
-  attendEmergency(roomId: string) {
+  async attendEmergency(roomId: string) {
     const existentRoom = this.rooms.find((r) => r.nodeId === roomId);
     if (existentRoom) {
       existentRoom.emergency = false;
