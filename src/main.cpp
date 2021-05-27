@@ -34,12 +34,20 @@ PubSubClient client(espClient);
 static void wifiConnect()
 {
   WiFi.begin(SID_WIFI, PIO_PASS);
+  
+  Serial.print(F("Status "));
+  Serial.println(WiFi.status());
 
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
-    Serial.print(F("Connecting to WiFi... status "));
+    Serial.print(F("Connecting to WiFi  "));
+    Serial.print(SID_WIFI);
+    Serial.print(F(" "));
+    Serial.print(PIO_PASS);
+    Serial.print(F(" ... Status "));
     Serial.println(WiFi.status());
+    
   }
 
   Serial.println(F("Connected to the WiFi network"));
@@ -432,6 +440,23 @@ static void alarm_send_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+/**
+ * @brief Testing 
+ */
+static void testing_task_handler(void *pvParameters) 
+{
+  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
+  int value = LOW;
+  
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+    value = value == LOW ? HIGH : LOW;
+    digitalWrite(RELAY_PIN, value);
+  }
+  vTaskDelete(NULL);
+}
+
 void setup()
 {
   delay(2000);
@@ -439,6 +464,7 @@ void setup()
   Serial.begin(115200);
   // pinMode(PRESENCE_PIN, INPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
 
   // Sensor initialization
   dht.begin();
@@ -464,7 +490,8 @@ void setup()
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-   xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
 
   // Tarea para envío de mensajes a mqtt entorno
   // Tarea para envío de mensajes a mqtt presencia
