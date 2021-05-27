@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "main.h"
 #include <DHT.h>
+#include <Servo.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <PubSubClient.h>
@@ -467,12 +468,22 @@ static void testing_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
   int value = LOW;
-  
+  int valueServo = 0;
+  int increment = 20;
   for (;;)
   {
     vTaskDelay(xDelay);
     value = value == LOW ? HIGH : LOW;
+
     digitalWrite(RELAY_PIN, value);
+    if (valueServo == 180) {
+      increment = increment * -1;
+    }
+    valueServo += increment;
+    
+
+
+
   }
   vTaskDelete(NULL);
 }
@@ -486,6 +497,10 @@ void setup()
   pinMode(ONBOARD_LED,OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
   pinMode(RELAY_PIN, OUTPUT);
+  
+  Servo servoMotor;
+  servoMotor.attach(SERVO_PIN);
+  servoMotor.write(0);
 
   // Sensor initialization
   dht.begin();
