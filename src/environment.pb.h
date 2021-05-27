@@ -17,8 +17,8 @@ typedef enum _ActuatorMessage_Actuator {
 
 /* Struct definitions */
 typedef struct _ActuatorMessage {
-    ActuatorMessage_Actuator actuator;
-    bool value;
+    pb_callback_t actuator;
+    pb_callback_t value;
 } ActuatorMessage;
 
 typedef struct _alartMessage {
@@ -52,10 +52,10 @@ extern "C" {
 /* Initializer values for message structs */
 #define environmentMessage_init_default          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define alartMessage_init_default                {0}
-#define ActuatorMessage_init_default             {_ActuatorMessage_Actuator_MIN, 0}
+#define ActuatorMessage_init_default             {{{NULL}, NULL}, {{NULL}, NULL}}
 #define environmentMessage_init_zero             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define alartMessage_init_zero                   {0}
-#define ActuatorMessage_init_zero                {_ActuatorMessage_Actuator_MIN, 0}
+#define ActuatorMessage_init_zero                {{{NULL}, NULL}, {{NULL}, NULL}}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define ActuatorMessage_actuator_tag             1
@@ -83,9 +83,9 @@ X(a, STATIC,   REQUIRED, BOOL,     alarm,             1)
 #define alartMessage_DEFAULT NULL
 
 #define ActuatorMessage_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, UENUM,    actuator,          1) \
-X(a, STATIC,   REQUIRED, BOOL,     value,             2)
-#define ActuatorMessage_CALLBACK NULL
+X(a, CALLBACK, REPEATED, UENUM,    actuator,          1) \
+X(a, CALLBACK, REPEATED, BOOL,     value,             2)
+#define ActuatorMessage_CALLBACK pb_default_field_callback
 #define ActuatorMessage_DEFAULT NULL
 
 extern const pb_msgdesc_t environmentMessage_msg;
@@ -100,7 +100,7 @@ extern const pb_msgdesc_t ActuatorMessage_msg;
 /* Maximum encoded size of messages (where known) */
 #define environmentMessage_size                  34
 #define alartMessage_size                        2
-#define ActuatorMessage_size                     4
+/* ActuatorMessage_size depends on runtime parameters */
 
 #ifdef __cplusplus
 } /* extern "C" */

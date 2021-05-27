@@ -18,6 +18,6 @@ message ActuatorMessage {
     LIGHT = 0;
     WINDOW = 1;
   }
-  required Actuator actuator = 1;
-  required bool value = 2;
+  repeated Actuator actuator = 1 [packed=true];
+  repeated bool value = 2 [packed=true];
 }
