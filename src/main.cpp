@@ -27,7 +27,7 @@ static float s_temperature = -1;
 static int s_lightLevel = -1;
 static int s_airQuality = -1;
 static float s_humidity = -1;
-
+static Servo servoMotor ;
 static bool s_wifi = false;
 #define ONBOARD_LED 2
 
@@ -466,24 +466,21 @@ static void alarm_send_task_handler(void *pvParameters)
  */
 static void testing_task_handler(void *pvParameters) 
 {
-  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
+  const TickType_t xDelay = 3000 / portTICK_PERIOD_MS;
   int value = LOW;
   int valueServo = 0;
-  int increment = 20;
+  int increment = -20;
   for (;;)
   {
     vTaskDelay(xDelay);
     value = value == LOW ? HIGH : LOW;
 
     digitalWrite(RELAY_PIN, value);
-    if (valueServo == 180) {
+    servoMotor.write(valueServo);
+    if (valueServo == 180 || valueServo==0) {
       increment = increment * -1;
     }
     valueServo += increment;
-    
-
-
-
   }
   vTaskDelete(NULL);
 }
@@ -497,8 +494,7 @@ void setup()
   pinMode(ONBOARD_LED,OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
   pinMode(RELAY_PIN, OUTPUT);
-  
-  Servo servoMotor;
+
   servoMotor.attach(SERVO_PIN);
   servoMotor.write(0);
 
