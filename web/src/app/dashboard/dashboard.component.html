@@ -5,7 +5,7 @@
         <div class="col-lg-6 col-md-12">
           <div class="card">
             <div class="card-header card-header-warning">
-              <h4 class="card-title">Room {{ room.idBedroom}}</h4>
+              <h4 class="card-title">Room {{ room.idBedroom }}</h4>
             </div>
             <div class="card-body table-responsive">
               <table class="table table-hover">
@@ -30,28 +30,42 @@
                       No hay emergencias
                     </td>
                     <td *ngIf="room.alarm">
-                      <button class="button-3d" (click)="attendEmergency(room)">Atendida</button>
+                      <button class="button-3d" (click)="attendEmergency(room)">
+                        Atendida
+                      </button>
                     </td>
                     <td *ngIf="!room.alarm"></td>
                   </tr>
                   <tr>
                     <td>Luz</td>
-                    <td>{{ room.lightLevel }}</td>
+                    <td>{{ formatLight(room.lightLevel) }}</td>
                     <td></td>
                   </tr>
                   <tr>
                     <td>Temperatura</td>
-                    <td>{{ room.temperature }}C</td>
+                    <td>
+                      {{
+                        isVarDefined(room.temperature)
+                          ? room.temperature + "C"
+                          : "N/A"
+                      }}
+                    </td>
                     <td></td>
                   </tr>
                   <tr>
                     <td>Humedad</td>
-                    <td>{{ room.humidity }}%</td>
+                    <td>
+                      {{
+                        isVarDefined(room.humidity)
+                          ? room.humidity + "%"
+                          : "N/A"
+                      }}
+                    </td>
                     <td></td>
                   </tr>
                   <tr>
                     <td>Calidad del aire</td>
-                    <td>{{ room.airQuality }}</td>
+                    <td>{{ formatAirQuality(room.airQuality) }}</td>
                     <td></td>
                   </tr>
                   <tr>

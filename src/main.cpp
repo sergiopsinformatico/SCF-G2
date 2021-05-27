@@ -242,7 +242,6 @@ static void air_quality_task_handler(void *pvParameters)
     vTaskDelay(xDelay);
     // Medimos la calidad del aire
     int actualAirMeasure = analogRead(MQ_SENSOR_PIN);
-    Serial.println(actualAirMeasure);
     // Si es la primera ejecucion o el valor actual esta por encima del limite y el anterior estaba por debajo
     // (evita mandar mensajes continuamente si nos mantenemos por encima del limite)
 
