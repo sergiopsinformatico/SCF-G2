@@ -69,8 +69,8 @@ export class DashboardComponent implements OnInit {
             : existentRoom.presence;
         }
       }
-      await this.delay(2000);
 
+      await this.delay(2000);
       for (let i = 0; i < 10; i++) {
         for (const room of this.rooms) {
           const dwlRooms = await this.roomsService.getRoom(
@@ -97,6 +97,7 @@ export class DashboardComponent implements OnInit {
                 : room.presence;
             }
           }
+ 
         }
         await this.delay(2000);
       }

@@ -30,7 +30,7 @@ static float s_humidity = -1;
 static bool s_wifi = false;
 #define ONBOARD_LED 2
 
-DHT dht(TEMPERATURE_SENSOR_PIN, DHT11);
+DHT dht(TEMPERATURE_SENSOR_PIN, DHT22);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -53,7 +53,7 @@ static void wifi_light_task_handler(void *pvParameters)
 static void wifiConnect()
 {
   WiFi.begin(SID_WIFI, PIO_PASS);
-  
+
   Serial.print(F("Status "));
   Serial.println(WiFi.status());
 
@@ -66,7 +66,6 @@ static void wifiConnect()
     Serial.print(PIO_PASS);
     Serial.print(F(" ... Status "));
     Serial.println(WiFi.status());
-    
   }
 
   s_wifi = true;
@@ -211,7 +210,7 @@ static void temperature_task_handler(void *pvParameters)
     vTaskDelay(xDelay);
     // Tomamos la temperatura
     float currentTemperature = dht.readTemperature();
-    if (!isnan(currentTemperature) && abs(currentTemperature - lastTemperature) > TEMPERATURE_THRESHOLD)
+    if ((lastTemperature == -100 && !isnan(currentTemperature)) || (!isnan(currentTemperature) && abs(currentTemperature - lastTemperature) > TEMPERATURE_THRESHOLD))
     {
       lastTemperature = currentTemperature;
       // Mandamos el mensaje
@@ -219,7 +218,7 @@ static void temperature_task_handler(void *pvParameters)
     }
 
     float currentHumidity = dht.readHumidity();
-    if (!isnan(currentHumidity) && abs(currentHumidity - lastHumidity) > HUMIDITY_THRESHOLD)
+    if ((lastHumidity == -100 && !isnan(currentHumidity)) || (!isnan(currentHumidity) && abs(currentHumidity - lastHumidity) > HUMIDITY_THRESHOLD))
     {
       lastHumidity = currentHumidity;
       send_sensor_msg(HUMIDITY_SENSOR_PIN, (int)(currentHumidity * 100));
@@ -242,31 +241,27 @@ static void air_quality_task_handler(void *pvParameters)
     vTaskDelay(xDelay);
     // Medimos la calidad del aire
     int actualAirMeasure = analogRead(MQ_SENSOR_PIN);
+    Serial.println(actualAirMeasure);
     // Si es la primera ejecucion o el valor actual esta por encima del limite y el anterior estaba por debajo
     // (evita mandar mensajes continuamente si nos mantenemos por encima del limite)
-    if (firstExecution || (actualAirMeasure > AIR_QUALITY_THRESHOLD && lastAirMeasure <= AIR_QUALITY_THRESHOLD))
+
+    if (firstExecution && !isnan(actualAirMeasure))
     {
 
       firstExecution = false;
-      lastAirMeasure = actualAirMeasure;
-
       // Mandamos el mensaje
       send_sensor_msg(MQ_SENSOR_PIN, actualAirMeasure);
     }
-    else if (actualAirMeasure <= AIR_QUALITY_THRESHOLD && lastAirMeasure > AIR_QUALITY_THRESHOLD)
+    else if (!isnan(actualAirMeasure) && abs(actualAirMeasure - lastAirMeasure) > AIR_QUALITY_THRESHOLD)
     {
       // Si el valor leido es menor que el limite y el anterior es mayor que el limite,
       // mandamos el mensaje para avisar de un cambio de estado
-      lastAirMeasure = actualAirMeasure;
 
       // Mandamos el mensaje
       send_sensor_msg(MQ_SENSOR_PIN, actualAirMeasure);
     }
-    else if (actualAirMeasure <= AIR_QUALITY_THRESHOLD)
-    {
-      // Siempre que el valor sea menor que el limite lo actualizamos
-      lastAirMeasure = actualAirMeasure;
-    }
+
+    lastAirMeasure = actualAirMeasure;
   }
   vTaskDelete(NULL);
 }
@@ -304,7 +299,7 @@ static void light_quantity_task_handler(void *pvParameters)
   // const int R_CALIBRATION = 10;
 
   int lastLightQuantity = 10000;
-
+  bool firstExecution = true;
   for (;;)
   {
     vTaskDelay(xDelay);
@@ -312,7 +307,14 @@ static void light_quantity_task_handler(void *pvParameters)
     int actualLightQuantity = analogRead(LDR_PIN);
     // actualLightQuantity = ((long)actualLightQuantity * R_DARKNESS * 10) / ((long)R_LIGHT * R_CALIBRATION * (1024 - actualLightQuantity));
     // Si es la primera ejecucion o la diferencia es mayor al limite
-    if (abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
+    if (firstExecution && !isnan(actualLightQuantity))
+    {
+      firstExecution = false;
+      lastLightQuantity = actualLightQuantity;
+      // Mandamos el mensaje
+      send_sensor_msg(LDR_PIN, actualLightQuantity);
+    }
+    else if (abs(actualLightQuantity - lastLightQuantity) > LIGHT_QUANTITY_THRESHOLD)
     {
       lastLightQuantity = actualLightQuantity;
       // Mandamos el mensaje
@@ -463,11 +465,11 @@ static void alarm_send_task_handler(void *pvParameters)
 /**
  * @brief Testing 
  */
-static void testing_task_handler(void *pvParameters) 
+static void testing_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
   int value = LOW;
-  
+
   for (;;)
   {
     vTaskDelay(xDelay);
@@ -483,7 +485,7 @@ void setup()
 
   Serial.begin(115200);
   // pinMode(PRESENCE_PIN, INPUT);
-  pinMode(ONBOARD_LED,OUTPUT);
+  pinMode(ONBOARD_LED, OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
   pinMode(RELAY_PIN, OUTPUT);
 
@@ -491,7 +493,7 @@ void setup()
   dht.begin();
 
   delay(2000);
-     xTaskCreatePinnedToCore(wifi_light_task_handler, "wifiLightTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(wifi_light_task_handler, "wifiLightTask", 1024, NULL, 3, NULL, 1);
 #ifdef PIO_WIFI
   wifiConnect();
 #endif
