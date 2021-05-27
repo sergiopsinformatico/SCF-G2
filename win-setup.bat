@@ -2,7 +2,10 @@
 
 REM  netsh wlan show profile name=MOVISTAR_ABCD key=clear
 
-echo WIFI SID
+echo WIFISID %WIFISID%
+echo WIFIPASS %WIFIPASS%
+echo SERVERIP %SERVERIP%
+
 SET /P WIFISID=Introduce WIFI SID: 
 SET /P WIFIPASS=Introduce WIFI PASS:
 SET /P SERVERIP=Introduce la ip de red local de tu pc:

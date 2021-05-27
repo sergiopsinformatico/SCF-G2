@@ -17,3 +17,4 @@ curl -i "http://localhost:8086/query" --data-urlencode "q=CREATE RETENTION POLIC
 curl -i -XPOST "http://localhost:8086/write?db=residentAngel" --data-binary @residences.data
 
 curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-urlencode "q=SELECT * FROM residences"
+curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-urlencode "q=SELECT * FROM light"
