@@ -27,9 +27,28 @@ static int s_lightLevel = -1;
 static int s_airQuality = -1;
 static float s_humidity = -1;
 
+static bool s_wifi = false;
+#define ONBOARD_LED 2
+
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT11);
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+static void wifi_light_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 250 / portTICK_PERIOD_MS;
+  for (;;)
+  {
+    digitalWrite(ONBOARD_LED, HIGH);
+    vTaskDelay(xDelay);
+    if (!s_wifi)
+    {
+      digitalWrite(ONBOARD_LED, LOW);
+    }
+    vTaskDelay(xDelay);
+  }
+  vTaskDelete(NULL);
+}
 
 static void wifiConnect()
 {
@@ -42,6 +61,7 @@ static void wifiConnect()
     Serial.println(WiFi.status());
   }
 
+  s_wifi = true;
   Serial.println(F("Connected to the WiFi network"));
   Serial.print(F("IP Address: "));
   Serial.println(WiFi.localIP());
@@ -438,12 +458,14 @@ void setup()
 
   Serial.begin(115200);
   // pinMode(PRESENCE_PIN, INPUT);
+  pinMode(ONBOARD_LED,OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
 
   // Sensor initialization
   dht.begin();
 
   delay(2000);
+     xTaskCreatePinnedToCore(wifi_light_task_handler, "wifiLightTask", 1024, NULL, 3, NULL, 1);
 #ifdef PIO_WIFI
   wifiConnect();
 #endif
@@ -464,7 +486,8 @@ void setup()
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-   xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+
 
   // Tarea para envío de mensajes a mqtt entorno
   // Tarea para envío de mensajes a mqtt presencia
