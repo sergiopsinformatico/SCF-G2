@@ -17,9 +17,6 @@
 static QueueHandle_t s_sensorDataQueue;
 // Actuator queue
 static QueueHandle_t s_actuatorDataQueue;
-// static QueueHandle_t s_tempQueue;
-// static QueueHandle_t s_airQueue;
-// static QueueHandle_t s_lightQueue;
 
 static bool s_alarm = false;
 static int s_presence = -1;
@@ -27,29 +24,57 @@ static float s_temperature = -1;
 static int s_lightLevel = -1;
 static int s_airQuality = -1;
 static float s_humidity = -1;
-static Servo servoMotor ;
-static bool s_wifi = false;
+static Servo servoMotor;
 #define ONBOARD_LED 2
 
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT22);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-static void wifi_light_task_handler(void *pvParameters)
+// ----- SETUP -----
+void setup()
 {
-  const TickType_t xDelay = 250 / portTICK_PERIOD_MS;
-  for (;;)
-  {
-    digitalWrite(ONBOARD_LED, HIGH);
-    vTaskDelay(xDelay);
-    if (!s_wifi)
-    {
-      digitalWrite(ONBOARD_LED, LOW);
-    }
-    vTaskDelay(xDelay);
-  }
-  vTaskDelete(NULL);
+  delay(2000);
+  Serial.begin(115200);
+
+  // Pin initialization
+  pinMode(ONBOARD_LED, OUTPUT);
+  pinMode(ALARM_BUTTON_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  servoMotor.attach(SERVO_PIN);
+  servoMotor.write(0);
+
+  // Sensor initialization
+  dht.begin();
+
+  delay(2000);
+  networkConnect();
+
+  s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
+  s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
+
+  attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
+
+  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
+  xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+
+  //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
+  client.subscribe(ACTIONS_TOPIC);
+  client.setCallback(mqttCallback);
 }
+
+void loop()
+{
+  client.loop();
+}
+
+// ----- WIFI Y MQTT -----
 
 static void wifiConnect()
 {
@@ -60,7 +85,9 @@ static void wifiConnect()
 
   while (WiFi.status() != WL_CONNECTED)
   {
+    digitalWrite(ONBOARD_LED, HIGH);
     delay(1000);
+    digitalWrite(ONBOARD_LED, LOW);
     Serial.print(F("Connecting to WiFi  "));
     Serial.print(SID_WIFI);
     Serial.print(F(" "));
@@ -68,8 +95,7 @@ static void wifiConnect()
     Serial.print(F(" ... Status "));
     Serial.println(WiFi.status());
   }
-
-  s_wifi = true;
+  digitalWrite(ONBOARD_LED, HIGH);
   Serial.println(F("Connected to the WiFi network"));
   Serial.print(F("IP Address: "));
   Serial.println(WiFi.localIP());
@@ -82,6 +108,7 @@ void mqttConnect()
   client.setKeepAlive(0);
   while (!client.connected())
   {
+    digitalWrite(ONBOARD_LED, HIGH);
     Serial.print(F("MQTT connecting ... "));
     Serial.print(BROKER_IP);
 
@@ -94,17 +121,22 @@ void mqttConnect()
       Serial.print(F("failed, status code ="));
       Serial.print(client.state());
       Serial.println(F("try again in 5 seconds"));
-
-      delay(5000); //* Wait 5 seconds before retrying
+      delay(1000);
+      digitalWrite(ONBOARD_LED, LOW);
     }
   }
+  digitalWrite(ONBOARD_LED, HIGH);
 }
 
-void debug_print_alarm(alartMessage message, bool result)
+void networkConnect()
 {
-  Serial.println(F("\nSending alarm"));
-  Serial.println(result);
+#ifdef PIO_WIFI
+  wifiConnect();
+#endif
+  mqttConnect();
 }
+
+// ----- INTERRUPCIONES -----
 
 /**
  * @brief Alarm Button Handler
@@ -115,28 +147,14 @@ static void IRAM_ATTR alarm_button_handler()
   s_alarm = true;
 }
 
-// static void send_environment_mqtt(EnvironmentTopicMsg msg) {
+static void IRAM_ATTR pir_interrupt_handler()
+{
+  int newPresence = digitalRead(PRESENCE_PIN);
+  digitalWrite(RELAY_PIN, newPresence);
+  send_sensor_msg(PRESENCE_PIN, newPresence);
+}
 
-//   uint8_t buffer[500];
-
-//   environmentMessage message = environmentMessage_init_zero;
-//   pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-//   message.airQuality = 100;
-//   message.has_airQuality = true;
-//   message.lightLevel = 1000;
-//   message.has_lightLevel = true;
-
-//   //message.f = 0.5;
-//   //strcpy(message.message, F("Hello Protobuf!"));
-//  // message.op = 0x48656c6c;
-//   bool status = pb_encode(&stream, environmentMessage_fields, &message);
-//   if (!status)
-//   {
-//       Serial.println(F("Failed to encode"));
-//       return;
-//   }
-//   client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
-// }
+// ----- TASKS -----
 
 /**
  * @brief Main Task Handler
@@ -176,23 +194,6 @@ static void main_task_handler(void *pvParameters)
         break;
       }
     }
-
-    // // TODO Si han variado una o más condiciones se
-    // // crea el mensaje para topic de salida
-    // if (presenceChange)
-    // {
-    //   presenceChange = false;
-    //   Serial.print(F("PRESENCE "));
-    //   Serial.println(presence);
-    // }
-
-    // if (envChange)
-    // {
-    //   envChange = false;
-    //   Serial.println(F("Sending mqtt"));
-    //   send_environment_mqtt(envMsg);
-
-    // }
   }
   vTaskDelete(NULL);
 }
@@ -247,7 +248,6 @@ static void air_quality_task_handler(void *pvParameters)
 
     if (firstExecution && !isnan(actualAirMeasure))
     {
-
       firstExecution = false;
       // Mandamos el mensaje
       send_sensor_msg(MQ_SENSOR_PIN, actualAirMeasure);
@@ -265,27 +265,6 @@ static void air_quality_task_handler(void *pvParameters)
   }
   vTaskDelete(NULL);
 }
-
-/**
- * @brief Presence task handler.
- *
- */
-// static void presence_task_handler(void *pvParameters)
-// {
-//   int presence = LOW;
-//   for (;;)
-//   {
-//     int newPresence = digitalRead(PRESENCE_PIN);
-//     Serial.print(F("newPresence "));
-//     Serial.println(newPresence);
-//     if(presence != newPresence) {
-//       presence = newPresence;
-//       send_sensor_msg(PRESENCE_PIN, presence);
-//     }
-//     vTaskDelay(PRESENCE_READ_PERIOD / portTICK_RATE_MS);
-//   }
-//   vTaskDelete(NULL);
-// }
 
 /**
  * @brief Light quantity Task Handler
@@ -324,20 +303,109 @@ static void light_quantity_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+/**
+ * @brief This task sends environment messages only if it's necessary .
+ */
+static void environment_send_task_handler(void *pvParameters)
+{
+
+  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+    // Load environment message
+    environmentMessage message = load_environment_message();
+
+    // If data loaded sends message
+    if (message.has_airQuality || message.has_humidity || message.has_lightLevel || message.has_temperature || message.has_presence)
+    {
+      uint8_t buffer[500];
+      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+      bool status = pb_encode(&stream, environmentMessage_fields, &message);
+      if (!status)
+      {
+        Serial.println(F("Failed to encode"));
+        return;
+      }
+
+      bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
+      debug_print(message, result);
+    }
+    // Reset message
+    s_lightLevel = s_temperature = s_humidity = s_airQuality = s_presence = -1;
+  }
+  vTaskDelete(NULL);
+}
+
+static void alarm_send_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+    if (s_alarm)
+    {
+      s_alarm = false;
+      Serial.print("Sending alarm...");
+      uint8_t buffer[500];
+      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+      // Creates empty message
+      alartMessage message = alartMessage_init_zero;
+      message.alarm = true;
+      bool status = pb_encode(&stream, alartMessage_fields, &message);
+      if (!status)
+      {
+        Serial.println(F("Failed to encode"));
+        return;
+      }
+
+      bool result = client.publish(ALARM_TOPIC, buffer, stream.bytes_written);
+      debug_print_alarm(message, result);
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+/**
+ * @brief Testing 
+ */
+static void testing_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
+
+  int valueServo = 0;
+  int increment = -20;
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+
+    servoMotor.write(valueServo);
+    if (valueServo == 180 || valueServo == 0)
+    {
+      increment = increment * -1;
+    }
+    valueServo += increment;
+  }
+  vTaskDelete(NULL);
+}
+
+// ----- UTILS -----
+
+void debug_print_alarm(alartMessage message, bool result)
+{
+  Serial.println(F("\nSending alarm"));
+  Serial.println(result);
+}
+
 static void send_sensor_msg(int sensorPin, int value)
 {
   SensorDataMsg currentPinRead;
   currentPinRead.pin = sensorPin;
   currentPinRead.value = value;
   xQueueSend(s_sensorDataQueue, &currentPinRead, portMAX_DELAY);
-}
-
-
-static void IRAM_ATTR pir_interrupt_handler()
-{
-  int newPresence = digitalRead(PRESENCE_PIN);
-  digitalWrite(RELAY_PIN, newPresence);
-  send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
 void debug_print(environmentMessage message, bool result)
@@ -398,158 +466,13 @@ static environmentMessage load_environment_message()
   return message;
 }
 
-/**
- * @brief This task sends environment messages only if it's necessary .
- */
-static void environment_send_task_handler(void *pvParameters)
-{
-
-  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
-
-  for (;;)
-  {
-    vTaskDelay(xDelay);
-    // Load environment message
-    environmentMessage message = load_environment_message();
-
-    // If data loaded sends message
-    if (message.has_airQuality || message.has_humidity || message.has_lightLevel || message.has_temperature || message.has_presence)
-    {
-      uint8_t buffer[500];
-      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-      bool status = pb_encode(&stream, environmentMessage_fields, &message);
-      if (!status)
-      {
-        Serial.println(F("Failed to encode"));
-        return;
-      }
-
-      bool result = client.publish(ENVIRONMENT_TOPIC, buffer, stream.bytes_written);
-      debug_print(message, result);
-    }
-    // Reset message
-    s_lightLevel = s_temperature = s_humidity = s_airQuality = s_presence = -1;
-  }
-  vTaskDelete(NULL);
-}
-
-static void alarm_send_task_handler(void *pvParameters)
-{
-  const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
-
-  for (;;)
-  {
-    vTaskDelay(xDelay);
-    if (s_alarm)
-    {
-      s_alarm = false;
-      Serial.print("ALARM");
-      uint8_t buffer[500];
-      pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
-
-      // Creates empty message
-      alartMessage message = alartMessage_init_zero;
-      message.alarm = true;
-      bool status = pb_encode(&stream, alartMessage_fields, &message);
-      if (!status)
-      {
-        Serial.println(F("Failed to encode"));
-        return;
-      }
-
-      bool result = client.publish(ALARM_TOPIC, buffer, stream.bytes_written);
-      debug_print_alarm(message, result);
-    }
-  }
-  vTaskDelete(NULL);
-}
-
-/**
- * @brief Testing 
- */
-static void testing_task_handler(void *pvParameters)
-{
-  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
-
-
-  int valueServo = 0;
-  int increment = -20;
-  for (;;)
-  {
-    vTaskDelay(xDelay);
-
-    servoMotor.write(valueServo);
-    if (valueServo == 180 || valueServo==0) {
-      increment = increment * -1;
-    }
-    valueServo += increment;
-  }
-  vTaskDelete(NULL);
-}
-
-void mqttCallback(char* topic, byte* payload, unsigned int length) { //MQTT MARCOS
+void mqttCallback(char *topic, byte *payload, unsigned int length)
+{ //MQTT MARCOS
   Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
   Serial.print("Payload: ");
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length; i++)
+  {
     Serial.print((char)payload[i]);
   }
   Serial.println();
-}
-
-void setup()
-{
-  delay(2000);
-
-  Serial.begin(115200);
-  // pinMode(PRESENCE_PIN, INPUT);
-  pinMode(ONBOARD_LED, OUTPUT);
-  pinMode(ALARM_BUTTON_PIN, INPUT);
-  pinMode(RELAY_PIN, OUTPUT);
-
-  servoMotor.attach(SERVO_PIN);
-  servoMotor.write(0);
-
-  // Sensor initialization
-  dht.begin();
-
-  delay(2000);
-  xTaskCreatePinnedToCore(wifi_light_task_handler, "wifiLightTask", 1024, NULL, 3, NULL, 1);
-#ifdef PIO_WIFI
-  wifiConnect();
-#endif
-  mqttConnect();
-
-  s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
-  s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
-  // s_tempQueue = xQueueCreate(1, sizeof(float));
-  // s_lightQueue = xQueueCreate(1, sizeof(int));
-  // s_airQueue = xQueueCreate(1, sizeof(int));
-
-  attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
-
-  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
-  // xTaskCreatePinnedToCore(presence_task_handler, "presenceTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
-
-  // Tarea para envío de mensajes a mqtt entorno
-  // Tarea para envío de mensajes a mqtt presencia
-  // Tarea para envío de mensajes a mqtt emergencia
-  // Tarea para recibir de mensajes a mqtt acción
-
-  //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
-  client.subscribe(ACTIONS_TOPIC);  
-  client.setCallback(mqttCallback);
-}
-
-void loop()
-{
-  client.loop(); 
-  // Do Nothing
-  // TODO
 }
