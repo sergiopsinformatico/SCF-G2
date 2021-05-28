@@ -488,7 +488,7 @@ static void testing_task_handler(void *pvParameters)
 }
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) { //MQTT MARCOS
-  Serial.printf("Topic: %s\r\n", ENVIRONMENT_TOPIC);
+  Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
   Serial.print("Payload: ");
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
@@ -543,7 +543,7 @@ void setup()
   // Tarea para recibir de mensajes a mqtt acción
 
   //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
-  client.subscribe(ENVIRONMENT_TOPIC);  
+  client.subscribe(ACTIONS_TOPIC);  
   client.setCallback(mqttCallback);
 }
 
