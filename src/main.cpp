@@ -487,6 +487,15 @@ static void testing_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+void mqttCallback(char* topic, byte* payload, unsigned int length) { //MQTT MARCOS
+  Serial.printf("Topic: %s\r\n", ENVIRONMENT_TOPIC);
+  Serial.print("Payload: ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+
 void setup()
 {
   delay(2000);
@@ -532,10 +541,15 @@ void setup()
   // Tarea para envío de mensajes a mqtt presencia
   // Tarea para envío de mensajes a mqtt emergencia
   // Tarea para recibir de mensajes a mqtt acción
+
+  //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
+  client.subscribe(ENVIRONMENT_TOPIC);  
+  client.setCallback(mqttCallback);
 }
 
 void loop()
 {
+  client.loop(); 
   // Do Nothing
   // TODO
 }
