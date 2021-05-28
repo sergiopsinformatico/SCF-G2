@@ -20,11 +20,3 @@ curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-u
 curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-urlencode "q=SELECT * FROM light"
 curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-urlencode "q=SELECT * FROM temperature  "
 curl -i http://localhost:8086/query --data-urlencode "db=residentAngel" --data-urlencode "q=SELECT l.lightLevel, t.temperature FROM light as l, temperature as t  where idBedroom=#idBedroom and idTenant=#idTenant and idResidence=#idResidence by time DESC limit 1"
-
-
-
-"time",
-						"idBedroom",
-						"idResidence",
-						"idTenant",
-						"lightLevel"

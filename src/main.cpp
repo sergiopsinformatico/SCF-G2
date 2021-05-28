@@ -331,9 +331,11 @@ static void send_sensor_msg(int sensorPin, int value)
   xQueueSend(s_sensorDataQueue, &currentPinRead, portMAX_DELAY);
 }
 
+
 static void IRAM_ATTR pir_interrupt_handler()
 {
   int newPresence = digitalRead(PRESENCE_PIN);
+  digitalWrite(RELAY_PIN, newPresence);
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
@@ -466,16 +468,14 @@ static void alarm_send_task_handler(void *pvParameters)
  */
 static void testing_task_handler(void *pvParameters) 
 {
-  const TickType_t xDelay = 3000 / portTICK_PERIOD_MS;
-  int value = LOW;
+  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
+
   int valueServo = 0;
   int increment = -20;
   for (;;)
   {
     vTaskDelay(xDelay);
-    value = value == LOW ? HIGH : LOW;
 
-    digitalWrite(RELAY_PIN, value);
     servoMotor.write(valueServo);
     if (valueServo == 180 || valueServo==0) {
       increment = increment * -1;
