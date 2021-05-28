@@ -76,6 +76,10 @@ void loop()
 
 // ----- WIFI Y MQTT -----
 
+/**
+ * @brief Function to connect to a wifi network
+ *
+ */
 static void wifiConnect()
 {
   WiFi.begin(SID_WIFI, PIO_PASS);
@@ -101,6 +105,10 @@ static void wifiConnect()
   Serial.println(WiFi.localIP());
 }
 
+/**
+ * @brief Function to connect to mqtt broker
+ *
+ */
 void mqttConnect()
 {
   client.setServer(BROKER_IP, BROKER_PORT);
@@ -128,6 +136,10 @@ void mqttConnect()
   digitalWrite(ONBOARD_LED, HIGH);
 }
 
+/**
+ * @brief Connects to wifi and then to MQTT
+ *
+ */
 void networkConnect()
 {
 #ifdef PIO_WIFI
@@ -147,6 +159,10 @@ static void IRAM_ATTR alarm_button_handler()
   s_alarm = true;
 }
 
+/**
+ * @brief PIR Handler
+ *
+ */
 static void IRAM_ATTR pir_interrupt_handler()
 {
   int newPresence = digitalRead(PRESENCE_PIN);
@@ -338,6 +354,10 @@ static void environment_send_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
+/**
+ * @brief Send alarm message
+ *
+ */
 static void alarm_send_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
@@ -442,6 +462,10 @@ void debug_print(environmentMessage message, bool result)
   Serial.println(result);
 }
 
+/**
+ * @brief Creates a new environment message
+ *
+ */
 static environmentMessage load_environment_message()
 {
   // Creates empty message
