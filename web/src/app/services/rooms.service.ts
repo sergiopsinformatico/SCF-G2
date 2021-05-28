@@ -1,5 +1,6 @@
 import { Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
+import { isDefined } from "@angular/compiler/src/util";
 
 export interface CommonResponse {
   readonly response: string;
@@ -70,6 +71,10 @@ export class RoomsService {
       return { rooms: [] };
     }
 
+    rooms = rooms.sort(function (x, y) {
+      return new Date(y.time).getTime() - new Date(x.time).getTime();
+    });
+
     const finalRooms: IRoomData[] = [];
     for (const room of rooms) {
       const existentRoom = finalRooms.find(
@@ -83,7 +88,7 @@ export class RoomsService {
         finalRooms.push(room);
       } else {
         for (const key in room) {
-          if (!existentRoom[key]) {
+          if (!isDefined(existentRoom[key])) {
             existentRoom[key] = room[key];
           }
         }
@@ -119,6 +124,10 @@ export class RoomsService {
       return { rooms: [] };
     }
 
+    rooms = rooms.sort(function (x, y) {
+      return new Date(y.time).getTime() - new Date(x.time).getTime();
+    });
+
     const finalRooms: IRoomData[] = [];
     for (const room of rooms) {
       const existentRoom = finalRooms.find(
@@ -132,13 +141,12 @@ export class RoomsService {
         finalRooms.push(room);
       } else {
         for (const key in room) {
-          if (!existentRoom[key]) {
+          if (!isDefined(existentRoom[key])) {
             existentRoom[key] = room[key];
           }
         }
       }
     }
-
     return { rooms: finalRooms };
   }
 
@@ -216,27 +224,25 @@ export class RoomsService {
       if (!resultObject) {
         return null;
       }
-      let colums: string[] = [];
+
       const allValues: any[] = [];
 
       for (const result of resultObject.results) {
-        for (const series of result.series) {
-          colums = series.columns;
-          for (const values of series.values) {
-            allValues.push(values);
+        if (result && result.series) {
+          for (const serie of result.series) {
+            const columns: string[] = serie.columns;
+            for (const val of serie.values) {
+              const newObj: any = {};
+              for (let i = 0; i < val.length; i++) {
+                newObj[columns[i]] = val[i];
+              }
+              allValues.push(newObj);
+            }
           }
         }
       }
 
-      const mergedObjects: any[] = [];
-      for (const values of allValues) {
-        let objectToAdd: any = {};
-        for (let i = 0; i < values.length; i++) {
-          objectToAdd[colums[i]] = values[i];
-        }
-        mergedObjects.push(objectToAdd);
-      }
-      return mergedObjects;
+      return allValues;
     } catch {
       return [];
     }

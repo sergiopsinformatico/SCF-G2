@@ -21,5 +21,5 @@ docker run -d -it -p 1880:1880 -v node_red_data:/data ^
 -e INFLUX_IP=%BROKER_IP% ^
 -e SENSOR_DATABASE_NAME=residentAngel ^
 -e AEMET_DATABASE_NAME=aemet ^
---name mynodered --net=mybridge  nodered/node-red 
+--name mynodered --net=mybridge  nodered/node-red:1.2.7
 

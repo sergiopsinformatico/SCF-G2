@@ -69,8 +69,8 @@ export class DashboardComponent implements OnInit {
             : existentRoom.presence;
         }
       }
-      await this.delay(2000);
 
+      await this.delay(2000);
       for (let i = 0; i < 10; i++) {
         for (const room of this.rooms) {
           const dwlRooms = await this.roomsService.getRoom(
@@ -142,6 +142,34 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+  formatLight(light: number): string {
+    if (!isDefined(light)) {
+      return "N/A";
+    }
+    if (light > 3500) {
+      return "A oscuras";
+    } else if (light <= 3500 && light > 3000) {
+      return "Poca luz";
+    } else {
+      return "Mucha luz";
+    }
+  }
+  formatAirQuality(air: number): string {
+    if (!isDefined(air)) {
+      return "N/A";
+    }
+    if (air > 2000) {
+      return "Mala calidad";
+    } else if (air <= 2000 && air > 1500) {
+      return "Calidad aceptable";
+    } else {
+      return "Calidad buena";
+    }
+  }
+
+  isVarDefined(v:any):boolean{
+    return isDefined(v);
+  }
   async playAudio(): Promise<void> {
     for (let i = 0; i < 3; i++) {
       if (this.audio) {
