@@ -9,16 +9,12 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-/* Enum definitions */
-typedef enum _ActuatorMessage_Actuator {
-    ActuatorMessage_Actuator_LIGHT = 0,
-    ActuatorMessage_Actuator_WINDOW = 1
-} ActuatorMessage_Actuator;
-
 /* Struct definitions */
 typedef struct _ActuatorMessage {
-    pb_callback_t actuator;
-    pb_callback_t value;
+    bool has_light;
+    bool light;
+    bool has_window;
+    bool window;
 } ActuatorMessage;
 
 typedef struct _alartMessage {
@@ -39,12 +35,6 @@ typedef struct _environmentMessage {
 } environmentMessage;
 
 
-/* Helper constants for enums */
-#define _ActuatorMessage_Actuator_MIN ActuatorMessage_Actuator_LIGHT
-#define _ActuatorMessage_Actuator_MAX ActuatorMessage_Actuator_WINDOW
-#define _ActuatorMessage_Actuator_ARRAYSIZE ((ActuatorMessage_Actuator)(ActuatorMessage_Actuator_WINDOW+1))
-
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -52,14 +42,14 @@ extern "C" {
 /* Initializer values for message structs */
 #define environmentMessage_init_default          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define alartMessage_init_default                {0}
-#define ActuatorMessage_init_default             {{{NULL}, NULL}, {{NULL}, NULL}}
+#define ActuatorMessage_init_default             {false, 0, false, 0}
 #define environmentMessage_init_zero             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define alartMessage_init_zero                   {0}
-#define ActuatorMessage_init_zero                {{{NULL}, NULL}, {{NULL}, NULL}}
+#define ActuatorMessage_init_zero                {false, 0, false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define ActuatorMessage_actuator_tag             1
-#define ActuatorMessage_value_tag                2
+#define ActuatorMessage_light_tag                1
+#define ActuatorMessage_window_tag               2
 #define alartMessage_alarm_tag                   1
 #define environmentMessage_lightLevel_tag        1
 #define environmentMessage_temperature_tag       2
@@ -83,9 +73,9 @@ X(a, STATIC,   REQUIRED, BOOL,     alarm,             1)
 #define alartMessage_DEFAULT NULL
 
 #define ActuatorMessage_FIELDLIST(X, a) \
-X(a, CALLBACK, REPEATED, UENUM,    actuator,          1) \
-X(a, CALLBACK, REPEATED, BOOL,     value,             2)
-#define ActuatorMessage_CALLBACK pb_default_field_callback
+X(a, STATIC,   OPTIONAL, BOOL,     light,             1) \
+X(a, STATIC,   OPTIONAL, BOOL,     window,            2)
+#define ActuatorMessage_CALLBACK NULL
 #define ActuatorMessage_DEFAULT NULL
 
 extern const pb_msgdesc_t environmentMessage_msg;
@@ -100,7 +90,7 @@ extern const pb_msgdesc_t ActuatorMessage_msg;
 /* Maximum encoded size of messages (where known) */
 #define environmentMessage_size                  34
 #define alartMessage_size                        2
-/* ActuatorMessage_size depends on runtime parameters */
+#define ActuatorMessage_size                     4
 
 #ifdef __cplusplus
 } /* extern "C" */

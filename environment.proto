@@ -14,10 +14,6 @@ message alartMessage {
 }
 
 message ActuatorMessage {
-  enum Actuator {
-    LIGHT = 0;
-    WINDOW = 1;
-  }
-  repeated Actuator actuator = 1 [packed=true];
-  repeated bool value = 2 [packed=true];
+  optional bool light = 1;
+  optional bool window = 2;
 }

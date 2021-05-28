@@ -12,6 +12,7 @@
 #include "pb_common.h"
 #include "pb.h"
 #include "pb_encode.h"
+#include "pb_decode.h"
 
 // Sensor queue
 static QueueHandle_t s_sensorDataQueue;
@@ -92,6 +93,7 @@ static void wifiConnect()
     digitalWrite(ONBOARD_LED, HIGH);
     delay(1000);
     digitalWrite(ONBOARD_LED, LOW);
+    delay(1000);
     Serial.print(F("Connecting to WiFi  "));
     Serial.print(SID_WIFI);
     Serial.print(F(" "));
@@ -496,7 +498,16 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   Serial.print("Payload: ");
   for (int i = 0; i < length; i++)
   {
-    Serial.print((char)payload[i]);
+
+    pb_istream_t stream = pb_istream_from_buffer(payload, length);
+    ActuatorMessage message = ActuatorMessage_init_zero;
+
+    pb_decode(&stream, ActuatorMessage_fields, &message);
+    Serial.print("IT WORKS!!!");
+    Serial.print("Window ");
+    Serial.println(message.window);
+    Serial.print("Light ");
+    Serial.println(message.light);
   }
   Serial.println();
 }
