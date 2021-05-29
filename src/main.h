@@ -83,5 +83,7 @@ static void send_sensor_msg(int sensorPin, int value);
 void debug_print(environmentMessage message, bool result);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 static environmentMessage load_environment_message();
+static void go_to_sleep_task_handler(void *pvParameters);
+static void mqtt_reconnect_task_handler(void *pvParameters);
 
 #endif

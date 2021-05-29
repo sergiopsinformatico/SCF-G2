@@ -42,9 +42,11 @@ void setup()
 
   // Inicialización de variables y sensores
   requiredInitialization();
-
   // Leemos el pin que ha causado que el wemos se despierte
   touch_pad_t touchPin = esp_sleep_get_touchpad_wakeup_status();
+
+  // Configuramos los pines touch para que puedan despertar el wemos
+  esp_sleep_enable_touchpad_wakeup();
 
   switch (touchPin)
   {
@@ -54,6 +56,18 @@ void setup()
     // nos conectamos al wifi y mandamos el mensaje
     Serial.println(F("Touch detected on alarm pin"));
     networkConnect();
+    client.setServer(BROKER_IP, BROKER_PORT);
+    while (!client.connected())
+    {
+      client.connect("ESP32Client1");
+      if (!client.connected())
+      {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+        delay(5000);
+      }
+    }
     Serial.print(F("Sending alarm..."));
     uint8_t buffer[500];
     pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
@@ -79,50 +93,36 @@ void setup()
 
     // Nos conectamos al wifi e inicializamos las interrupciones
     networkConnect();
+    client.setServer(BROKER_IP, BROKER_PORT);
+    client.setCallback(mqttCallback);
+
     attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
     attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
 
     // Lanzamos las tareas
-    TaskHandle_t xHandleMain = NULL;
-    TaskHandle_t xHandleTemp = NULL;
-    TaskHandle_t xHandleAir = NULL;
-    TaskHandle_t xHandleLight = NULL;
-    TaskHandle_t xHandleEnv = NULL;
-    TaskHandle_t xHandleTest = NULL;
-    TaskHandle_t xHandleAlarm = NULL;
-    xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, &xHandleMain, 0);
-    xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, &xHandleTemp, 1);
-    xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, &xHandleAir, 1);
-    xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, &xHandleLight, 1);
-    xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, &xHandleEnv, 1);
-    xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, &xHandleTest, 0);
-    xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, &xHandleAlarm, 1);
-
-    // Esperamos un tiempo
-    delay(PIR_DELAY);
-
-    // Paramos las tareas antes de volver a dormir
-    vTaskDelete(xHandleMain);
-    vTaskDelete(xHandleTemp);
-    vTaskDelete(xHandleAir);
-    vTaskDelete(xHandleLight);
-    vTaskDelete(xHandleEnv);
-    vTaskDelete(xHandleTest);
-    vTaskDelete(xHandleAlarm);
+    xTaskCreatePinnedToCore(mqtt_reconnect_task_handler, "mqReconnectTask", 2048, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+    xTaskCreatePinnedToCore(go_to_sleep_task_handler, "goToSleepTask", 1024, NULL, 3, NULL, 1);
   }
   break;
+  default:
+  {
+    // Añadimos las interrupciones
+    // Hay que añadirlas justo antes de esp_deep_sleep_start();
+    // En caso contrario las llamadas a attachInterrupt no funcionan.
+    touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
+    touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
+    // Nos vamos a dormir
+    Serial.println(F("Going to sleep now..."));
+    esp_deep_sleep_start();
   }
-
-  // Configuramos los pines touch para que puedan despertar el wemos
-  esp_sleep_enable_touchpad_wakeup();
-
-  // Añadimos las interrupciones
-  touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
-  touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
-
-  // Nos vamos a dormir
-  Serial.println(F("Going to sleep now..."));
-  esp_deep_sleep_start();
+  }
 }
 
 void loop()
@@ -170,7 +170,7 @@ static void wifiConnect()
 
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(1000);
+    vTaskDelay(1000);
     Serial.print(F("Connecting to WiFi  "));
     Serial.print(SID_WIFI);
     Serial.print(F(" "));
@@ -184,34 +184,6 @@ static void wifiConnect()
 }
 
 /**
- * @brief Function to connect to mqtt broker
- *
- */
-void mqttConnect()
-{
-  client.setServer(BROKER_IP, BROKER_PORT);
-  client.setSocketTimeout(30);
-  client.setKeepAlive(0);
-  while (!client.connected())
-  {
-    Serial.print(F("MQTT connecting ... "));
-    Serial.print(BROKER_IP);
-
-    if (client.connect("ESP32Client1"))
-    {
-      Serial.println(F("connected"));
-    }
-    else
-    {
-      Serial.print(F("failed, status code ="));
-      Serial.print(client.state());
-      Serial.println(F("try again in 5 seconds"));
-      delay(5000);
-    }
-  }
-}
-
-/**
  * @brief Connects to wifi and then to MQTT
  *
  */
@@ -221,7 +193,6 @@ void networkConnect()
 #ifdef PIO_WIFI
   wifiConnect();
 #endif
-  mqttConnect();
   digitalWrite(ONBOARD_LED, HIGH);
 }
 
@@ -428,6 +399,63 @@ static void environment_send_task_handler(void *pvParameters)
 }
 
 /**
+ * @brief Reconnect to MQTT
+ *
+ */
+static void mqtt_reconnect_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    if (!client.connected())
+    {
+      Serial.print(F("MQTT connecting ... "));
+      Serial.print(BROKER_IP);
+
+      if (client.connect("ESP32Client1"))
+      {
+        Serial.println(F("connected"));
+        client.subscribe(ACTIONS_TOPIC);
+      }
+    }
+
+    if (client.connected())
+    {
+      client.loop();
+    }
+    vTaskDelay(xDelay);
+  }
+  vTaskDelete(NULL);
+}
+
+/**
+ * @brief Go to sleep if there is no presence
+ *
+ */
+static void go_to_sleep_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = PIR_DELAY / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    vTaskDelay(xDelay);
+    if (s_presence != 1)
+    {
+      // Añadimos las interrupciones
+      // Hay que añadirlas justo antes de esp_deep_sleep_start();
+      // En caso contrario las llamadas a attachInterrupt no funcionan.
+      touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
+      touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
+      // Nos vamos a dormir
+      Serial.println(F("Going to sleep now..."));
+      esp_deep_sleep_start();
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+/**
  * @brief Send alarm message
  *
  */
@@ -567,7 +595,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
 { //MQTT MARCOS
   Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
   Serial.print(F("Payload: "));
-  for (int i = 0; i < length; i++)
+  /* for (int i = 0; i < length; i++)
   {
 
     pb_istream_t stream = pb_istream_from_buffer(payload, length);
@@ -579,6 +607,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     Serial.println(message.window);
     Serial.print(F("Light "));
     Serial.println(message.light);
-  }
+  }*/
   Serial.println();
 }
