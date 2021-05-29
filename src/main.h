@@ -8,11 +8,12 @@
 #define HUMIDITY_SENSOR_PIN A0
 #define TEMPERATURE_SENSOR_PIN D4
 #define SERVO_PIN D5
-#define PRESENCE_PIN D13
+#define PRESENCE_PIN D8
 #define RELAY_PIN D11
-#define ALARM_BUTTON_PIN D12
+#define ALARM_BUTTON_PIN D9
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
+#define ONBOARD_LED 2
 
 // Rangos
 #define AIR_QUALITY_THRESHOLD 25
@@ -27,6 +28,8 @@
 #define ALARM_TOPIC "1/1/bedroom/1/alarm"
 #define ACTIONS_TOPIC "1/1/bedroom/1/actions"
 #define BROKER_PORT 2883
+
+#define PIR_DELAY 60000
 
 // Structs
 /**
@@ -62,22 +65,23 @@ typedef struct
 } EnvironmentTopicMsg;
 
 // Funciones
+void requiredInitialization();
 static void wifiConnect();
 void mqttConnect();
-void debug_print_alarm(alartMessage message, bool result);
+void networkConnect();
 static void IRAM_ATTR alarm_button_handler();
+static void IRAM_ATTR pir_interrupt_handler();
 static void main_task_handler(void *pvParameters);
 static void temperature_task_handler(void *pvParameters);
 static void air_quality_task_handler(void *pvParameters);
 static void light_quantity_task_handler(void *pvParameters);
-static void send_sensor_msg(int sensorPin, int value);
-static void IRAM_ATTR pir_interrupt_handler();
-void debug_print(environmentMessage message, bool result);
-static environmentMessage load_environment_message();
 static void environment_send_task_handler(void *pvParameters);
 static void alarm_send_task_handler(void *pvParameters);
 static void testing_task_handler(void *pvParameters);
+void debug_print_alarm(alartMessage message, bool result);
+static void send_sensor_msg(int sensorPin, int value);
+void debug_print(environmentMessage message, bool result);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
-void networkConnect();
+static environmentMessage load_environment_message();
 
 #endif

@@ -1,4 +1,6 @@
+// ----- INCLUDES -----
 #include <Arduino.h>
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "main.h"
@@ -8,17 +10,20 @@
 #include <HTTPClient.h>
 #include <PubSubClient.h>
 #include "environment.pb.h"
-
 #include "pb_common.h"
 #include "pb.h"
 #include "pb_encode.h"
 #include "pb_decode.h"
+#include "soc/rtc_cntl_reg.h"
+#include "soc/rtc.h"
 
+// ----- QUEUES -----
 // Sensor queue
 static QueueHandle_t s_sensorDataQueue;
 // Actuator queue
 static QueueHandle_t s_actuatorDataQueue;
 
+// ----- SENSOR VARS -----
 static bool s_alarm = false;
 static int s_presence = -1;
 static float s_temperature = -1;
@@ -26,8 +31,6 @@ static int s_lightLevel = -1;
 static int s_airQuality = -1;
 static float s_humidity = -1;
 static Servo servoMotor;
-#define ONBOARD_LED 2
-
 DHT dht(TEMPERATURE_SENSOR_PIN, DHT22);
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -35,44 +38,121 @@ PubSubClient client(espClient);
 // ----- SETUP -----
 void setup()
 {
-  delay(2000);
   Serial.begin(115200);
 
-  // Pin initialization
-  pinMode(ONBOARD_LED, OUTPUT);
-  pinMode(ALARM_BUTTON_PIN, INPUT);
-  pinMode(RELAY_PIN, OUTPUT);
-  servoMotor.attach(SERVO_PIN);
-  servoMotor.write(0);
+  // Inicialización de variables y sensores
+  requiredInitialization();
 
-  // Sensor initialization
-  dht.begin();
+  // Leemos el pin que ha causado que el wemos se despierte
+  touch_pad_t touchPin = esp_sleep_get_touchpad_wakeup_status();
 
-  delay(2000);
-  networkConnect();
+  switch (touchPin)
+  {
+  case 4:
+  {
+    // Si se ha despertado debido a la alarma simplemente
+    // nos conectamos al wifi y mandamos el mensaje
+    Serial.println(F("Touch detected on alarm pin"));
+    networkConnect();
+    Serial.print(F("Sending alarm..."));
+    uint8_t buffer[500];
+    pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
 
-  s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
-  s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
+    // Creates empty message
+    alartMessage message = alartMessage_init_zero;
+    message.alarm = true;
+    bool status = pb_encode(&stream, alartMessage_fields, &message);
+    if (!status)
+    {
+      Serial.println(F("Failed to encode"));
+      return;
+    }
 
-  attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
+    bool result = client.publish(ALARM_TOPIC, buffer, stream.bytes_written);
+    debug_print_alarm(message, result);
+  }
+  break;
+  case 5:
+  {
+    // Si se ha despertado por un cambio de presencia en el PIR..
+    Serial.println(F("Touch detected on PIR pin"));
 
-  xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
+    // Nos conectamos al wifi e inicializamos las interrupciones
+    networkConnect();
+    attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
+    attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
 
-  //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
-  client.subscribe(ACTIONS_TOPIC);
-  client.setCallback(mqttCallback);
+    // Lanzamos las tareas
+    TaskHandle_t xHandleMain = NULL;
+    TaskHandle_t xHandleTemp = NULL;
+    TaskHandle_t xHandleAir = NULL;
+    TaskHandle_t xHandleLight = NULL;
+    TaskHandle_t xHandleEnv = NULL;
+    TaskHandle_t xHandleTest = NULL;
+    TaskHandle_t xHandleAlarm = NULL;
+    xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, &xHandleMain, 0);
+    xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, &xHandleTemp, 1);
+    xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, &xHandleAir, 1);
+    xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, &xHandleLight, 1);
+    xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, &xHandleEnv, 1);
+    xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, &xHandleTest, 0);
+    xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, &xHandleAlarm, 1);
+
+    // Esperamos un tiempo
+    delay(PIR_DELAY);
+
+    // Paramos las tareas antes de volver a dormir
+    vTaskDelete(xHandleMain);
+    vTaskDelete(xHandleTemp);
+    vTaskDelete(xHandleAir);
+    vTaskDelete(xHandleLight);
+    vTaskDelete(xHandleEnv);
+    vTaskDelete(xHandleTest);
+    vTaskDelete(xHandleAlarm);
+  }
+  break;
+  }
+
+  // Configuramos los pines touch para que puedan despertar el wemos
+  esp_sleep_enable_touchpad_wakeup();
+
+  // Añadimos las interrupciones
+  touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
+  touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
+
+  // Nos vamos a dormir
+  Serial.println(F("Going to sleep now..."));
+  esp_deep_sleep_start();
 }
 
 void loop()
 {
-  client.loop();
+}
+
+void requiredInitialization()
+{
+  // Inicialización de variables
+  s_alarm = false;
+  s_presence = -1;
+  s_temperature = -1;
+  s_lightLevel = -1;
+  s_airQuality = -1;
+  s_humidity = -1;
+
+  // Inicilización de pines y sensores
+  pinMode(ONBOARD_LED, OUTPUT);
+  pinMode(ALARM_BUTTON_PIN, INPUT);
+  pinMode(PRESENCE_PIN, INPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  servoMotor.attach(SERVO_PIN);
+  servoMotor.write(0);
+  dht.begin();
+
+  // Inicialización de colas
+  s_sensorDataQueue = xQueueCreate(10, sizeof(SensorDataMsg));
+  s_actuatorDataQueue = xQueueCreate(10, sizeof(ActuatorDataMsg));
+
+  delay(2000);
 }
 
 // ----- WIFI Y MQTT -----
@@ -90,9 +170,6 @@ static void wifiConnect()
 
   while (WiFi.status() != WL_CONNECTED)
   {
-    digitalWrite(ONBOARD_LED, HIGH);
-    delay(1000);
-    digitalWrite(ONBOARD_LED, LOW);
     delay(1000);
     Serial.print(F("Connecting to WiFi  "));
     Serial.print(SID_WIFI);
@@ -101,7 +178,6 @@ static void wifiConnect()
     Serial.print(F(" ... Status "));
     Serial.println(WiFi.status());
   }
-  digitalWrite(ONBOARD_LED, HIGH);
   Serial.println(F("Connected to the WiFi network"));
   Serial.print(F("IP Address: "));
   Serial.println(WiFi.localIP());
@@ -118,7 +194,6 @@ void mqttConnect()
   client.setKeepAlive(0);
   while (!client.connected())
   {
-    digitalWrite(ONBOARD_LED, HIGH);
     Serial.print(F("MQTT connecting ... "));
     Serial.print(BROKER_IP);
 
@@ -131,11 +206,9 @@ void mqttConnect()
       Serial.print(F("failed, status code ="));
       Serial.print(client.state());
       Serial.println(F("try again in 5 seconds"));
-      delay(1000);
-      digitalWrite(ONBOARD_LED, LOW);
+      delay(5000);
     }
   }
-  digitalWrite(ONBOARD_LED, HIGH);
 }
 
 /**
@@ -144,10 +217,12 @@ void mqttConnect()
  */
 void networkConnect()
 {
+  digitalWrite(ONBOARD_LED, LOW);
 #ifdef PIO_WIFI
   wifiConnect();
 #endif
   mqttConnect();
+  digitalWrite(ONBOARD_LED, HIGH);
 }
 
 // ----- INTERRUPCIONES -----
@@ -291,10 +366,6 @@ static void air_quality_task_handler(void *pvParameters)
 static void light_quantity_task_handler(void *pvParameters)
 {
   const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
-  // const int R_DARKNESS = 1000;
-  // const int R_LIGHT = 15;
-  // const int R_CALIBRATION = 10;
-
   int lastLightQuantity = 10000;
   bool firstExecution = true;
   for (;;)
@@ -370,7 +441,7 @@ static void alarm_send_task_handler(void *pvParameters)
     if (s_alarm)
     {
       s_alarm = false;
-      Serial.print("Sending alarm...");
+      Serial.print(F("Sending alarm..."));
       uint8_t buffer[500];
       pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
 
@@ -458,7 +529,7 @@ void debug_print(environmentMessage message, bool result)
     Serial.print(F("Presence "));
     Serial.println(message.presence);
   }
-  Serial.print("Now millis ");
+  Serial.print(F("Now millis "));
   Serial.println(millis());
   Serial.print(F("MQTT SEND RESULT"));
   Serial.println(result);
@@ -495,7 +566,7 @@ static environmentMessage load_environment_message()
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 { //MQTT MARCOS
   Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
-  Serial.print("Payload: ");
+  Serial.print(F("Payload: "));
   for (int i = 0; i < length; i++)
   {
 
@@ -503,10 +574,10 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     ActuatorMessage message = ActuatorMessage_init_zero;
 
     pb_decode(&stream, ActuatorMessage_fields, &message);
-    Serial.print("IT WORKS!!!");
-    Serial.print("Window ");
+    Serial.print(F("IT WORKS!!!"));
+    Serial.print(F("Window "));
     Serial.println(message.window);
-    Serial.print("Light ");
+    Serial.print(F("Light "));
     Serial.println(message.light);
   }
   Serial.println();
