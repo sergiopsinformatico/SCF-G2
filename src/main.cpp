@@ -41,6 +41,7 @@ void setup()
   // Pin initialization
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
+  pinMode(PRESENCE_PIN, INPUT);
   pinMode(RELAY_PIN, OUTPUT);
   servoMotor.attach(SERVO_PIN);
   servoMotor.write(0);
@@ -57,6 +58,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(ALARM_BUTTON_PIN), &alarm_button_handler, FALLING);
   attachInterrupt(digitalPinToInterrupt(PRESENCE_PIN), &pir_interrupt_handler, CHANGE);
 
+  xTaskCreatePinnedToCore(mqtt_reconnect_task_handler, "mqReconnectTask", 2048, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(main_task_handler, "mainTask", 1024, NULL, 5, NULL, 0);
   xTaskCreatePinnedToCore(temperature_task_handler, "temperatureTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
@@ -66,8 +68,7 @@ void setup()
   xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
 
   //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
-  client.subscribe(ACTIONS_TOPIC);
-  client.setCallback(mqttCallback);
+  
 }
 
 void loop()
@@ -83,8 +84,8 @@ void loop()
  */
 static void wifiConnect()
 {
-  WiFi.begin(SID_WIFI, PIO_PASS);
-
+  // WiFi.begin(SID_WIFI, PIO_PASS);
+  WiFi.begin("mixmi", "dmmqlssac");
   Serial.print(F("Status "));
   Serial.println(WiFi.status());
 
@@ -114,8 +115,10 @@ static void wifiConnect()
 void mqttConnect()
 {
   client.setServer(BROKER_IP, BROKER_PORT);
-  client.setSocketTimeout(30);
-  client.setKeepAlive(0);
+  client.subscribe(ACTIONS_TOPIC);
+  client.setCallback(mqttCallback);
+  // client.setSocketTimeout(30);
+  // client.setKeepAlive(0);
   while (!client.connected())
   {
     digitalWrite(ONBOARD_LED, HIGH);
@@ -510,4 +513,36 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     Serial.println(message.light);
   }
   Serial.println();
+}
+
+
+/**
+ * @brief Reconnect to MQTT
+ *
+ */
+static void mqtt_reconnect_task_handler(void *pvParameters)
+{
+  const TickType_t xDelay = 2000 / portTICK_PERIOD_MS;
+
+  for (;;)
+  {
+    if (!client.connected())
+    {
+      Serial.print(F("MQTT connecting ... "));
+      Serial.print(BROKER_IP);
+
+      if (client.connect("ESP32Client1"))
+      {
+        Serial.println(F("connected"));
+        client.subscribe(ACTIONS_TOPIC);
+      }
+    }
+
+    if (client.connected())
+    {
+      client.loop();
+    }
+    vTaskDelay(xDelay);
+  }
+  vTaskDelete(NULL);
 }

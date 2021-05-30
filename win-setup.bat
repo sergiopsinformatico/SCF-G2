@@ -2,13 +2,13 @@
 
 REM  netsh wlan show profile name=MOVISTAR_ABCD key=clear
 
-echo WIFISID %WIFISID%
-echo WIFIPASS %WIFIPASS%
-echo SERVERIP %SERVERIP%
+echo PIO_WIFI %PIO_WIFI%
+echo PIO_WIFI_PASS %PIO_WIFI_PASS%
+echo BROKER_IP %BROKER_IP%
 
 SET /P WIFISID=Introduce WIFI SID: 
-SET /P WIFIPASS=Introduce WIFI PASS:
-SET /P SERVERIP=Introduce la ip de red local de tu pc:
+SET /P PIO_WIFI_PASS=Introduce WIFI PASS:
+SET /P BROKER_IP=Introduce la ip de red local de tu pc:
 
 SETX PIO_WIFI %WIFISID%
 SETX PIO_WIFI_PASS %WIFIPASS%

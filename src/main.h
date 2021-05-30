@@ -8,14 +8,14 @@
 #define HUMIDITY_SENSOR_PIN A0
 #define TEMPERATURE_SENSOR_PIN D4
 #define SERVO_PIN D5
-#define PRESENCE_PIN D13
 #define RELAY_PIN D11
 #define ALARM_BUTTON_PIN D12
+#define PRESENCE_PIN D13
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
 
 // Rangos
-#define AIR_QUALITY_THRESHOLD 25
+#define AIR_QUALITY_THRESHOLD 50
 #define TEMPERATURE_THRESHOLD 1
 #define HUMIDITY_THRESHOLD 3
 #define LIGHT_QUANTITY_THRESHOLD 100
@@ -78,6 +78,7 @@ static void environment_send_task_handler(void *pvParameters);
 static void alarm_send_task_handler(void *pvParameters);
 static void testing_task_handler(void *pvParameters);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
+static void mqtt_reconnect_task_handler(void *pvParameters);
 void networkConnect();
 
 #endif
