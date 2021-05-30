@@ -50,7 +50,7 @@ void setup()
 
   switch (touchPin)
   {
-  case 4:
+  case 6:
   {
     // Si se ha despertado debido a la alarma simplemente
     // nos conectamos al wifi y mandamos el mensaje
@@ -84,9 +84,17 @@ void setup()
 
     bool result = client.publish(ALARM_TOPIC, buffer, stream.bytes_written);
     debug_print_alarm(message, result);
+    // Añadimos las interrupciones
+    // Hay que añadirlas justo antes de esp_deep_sleep_start();
+    // En caso contrario las llamadas a attachInterrupt no funcionan.
+    touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
+    touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
+    // Nos vamos a dormir
+    Serial.println(F("Going to sleep now..."));
+    esp_deep_sleep_start();
   }
   break;
-  case 5:
+  case 7:
   {
     // Si se ha despertado por un cambio de presencia en el PIR..
     Serial.println(F("Touch detected on PIR pin"));
