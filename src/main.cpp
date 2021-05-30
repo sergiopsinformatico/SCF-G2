@@ -42,6 +42,7 @@ void setup()
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
   pinMode(PRESENCE_PIN, INPUT);
+  pinMode(PRESENCE_LED_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
   servoMotor.attach(SERVO_PIN);
   servoMotor.write(0);
@@ -64,7 +65,7 @@ void setup()
   xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
   xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-  xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
+  // xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 0);
   xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
 
   //Suscripción al topic ENVIROMENT_TOPIC MQTT MARCOS
@@ -115,8 +116,6 @@ static void wifiConnect()
 void mqttConnect()
 {
   client.setServer(BROKER_IP, BROKER_PORT);
-  client.subscribe(ACTIONS_TOPIC);
-  client.setCallback(mqttCallback);
   // client.setSocketTimeout(30);
   // client.setKeepAlive(0);
   while (!client.connected())
@@ -138,6 +137,12 @@ void mqttConnect()
       digitalWrite(ONBOARD_LED, LOW);
     }
   }
+  bool isSubscribed = client.subscribe(ACTIONS_TOPIC);
+  while(!isSubscribed) {
+    Serial.println(F("Trying to subscribe"));
+  }
+  client.setCallback(mqttCallback);
+  Serial.println(F("Subscribed"));
   digitalWrite(ONBOARD_LED, HIGH);
 }
 
@@ -171,7 +176,7 @@ static void IRAM_ATTR alarm_button_handler()
 static void IRAM_ATTR pir_interrupt_handler()
 {
   int newPresence = digitalRead(PRESENCE_PIN);
-  digitalWrite(RELAY_PIN, newPresence);
+  digitalWrite(PRESENCE_LED_PIN, newPresence);
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
@@ -495,23 +500,29 @@ static environmentMessage load_environment_message()
   return message;
 }
 
+
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 { //MQTT MARCOS
   Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
-  Serial.print("Payload: ");
-  for (int i = 0; i < length; i++)
-  {
 
-    pb_istream_t stream = pb_istream_from_buffer(payload, length);
-    ActuatorMessage message = ActuatorMessage_init_zero;
+  pb_istream_t stream = pb_istream_from_buffer(payload, length);
+  ActuatorMessage message = ActuatorMessage_init_zero;
 
-    pb_decode(&stream, ActuatorMessage_fields, &message);
-    Serial.print("IT WORKS!!!");
-    Serial.print("Window ");
-    Serial.println(message.window);
-    Serial.print("Light ");
-    Serial.println(message.light);
+  pb_decode(&stream, ActuatorMessage_fields, &message);
+  
+  if(message.window) {
+    servoMotor.write(180);
+  } else {
+    servoMotor.write(0);
   }
+
+  if(message.light) {
+    digitalWrite(RELAY_PIN, HIGH);
+  } else {
+    digitalWrite(RELAY_PIN, LOW);
+  }
+  
+  
   Serial.println();
 }
 
