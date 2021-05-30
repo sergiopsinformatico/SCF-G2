@@ -151,6 +151,7 @@ void requiredInitialization()
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(ALARM_BUTTON_PIN, INPUT);
   pinMode(PRESENCE_PIN, INPUT);
+  pinMode(PRESENCE_LED_PIN, OUTPUT);
   pinMode(RELAY_PIN, OUTPUT);
   servoMotor.attach(SERVO_PIN);
   servoMotor.write(0);
@@ -222,7 +223,7 @@ static void IRAM_ATTR alarm_button_handler()
 static void IRAM_ATTR pir_interrupt_handler()
 {
   int newPresence = digitalRead(PRESENCE_PIN);
-  digitalWrite(RELAY_PIN, newPresence);
+  digitalWrite(PRESENCE_LED_PIN, newPresence);
   send_sensor_msg(PRESENCE_PIN, newPresence);
 }
 
@@ -602,19 +603,29 @@ static environmentMessage load_environment_message()
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 { //MQTT MARCOS
   Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
-  Serial.print(F("Payload: "));
-  /* for (int i = 0; i < length; i++)
+
+  pb_istream_t stream = pb_istream_from_buffer(payload, length);
+  ActuatorMessage message = ActuatorMessage_init_zero;
+
+  pb_decode(&stream, ActuatorMessage_fields, &message);
+
+  if (message.window)
   {
+    servoMotor.write(180);
+  }
+  else
+  {
+    servoMotor.write(0);
+  }
 
-    pb_istream_t stream = pb_istream_from_buffer(payload, length);
-    ActuatorMessage message = ActuatorMessage_init_zero;
+  if (message.light)
+  {
+    digitalWrite(RELAY_PIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(RELAY_PIN, LOW);
+  }
 
-    pb_decode(&stream, ActuatorMessage_fields, &message);
-    Serial.print(F("IT WORKS!!!"));
-    Serial.print(F("Window "));
-    Serial.println(message.window);
-    Serial.print(F("Light "));
-    Serial.println(message.light);
-  }*/
   Serial.println();
 }
