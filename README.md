@@ -8,7 +8,9 @@
 
 4. Conectar a la consola del contendor de Node-RED e instalar.
 
-> npm install node-red-contrib-protobuf --production
+```
+npm install node-red-contrib-protobuf --production
+```
 
 5. En el contenedor de nodeRed copiar el fichero environment.proto en la carpeta /usr/src/node-red
 
@@ -16,5 +18,18 @@
 
 7. Abrir la carpeta web en el terminal.
 
-8. Ejecutar npm install y despues npm start para lanzar la página web, que será accesible desde http://localhost:4200/
+8. Ejecutar desde la carpeta /web los siguientes comandos
+
+```
+npm install
+npm start
+```
+
+9. Acceder a la url http://localhost:4200/
+
+9. Ejecutar desde la raíz del proyecto el siguiente comando:
+
+```
+pio run --target clean &  pio run --target erase & pio run --target upload & pio device monitor -b 115200
+```
 
