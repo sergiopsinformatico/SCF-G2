@@ -14,6 +14,7 @@
 #define MQ_SENSOR_PIN A3
 #define LDR_PIN A2
 #define ONBOARD_LED 2
+#define PRESENCE_LED_PIN D15
 
 // Rangos
 #define AIR_QUALITY_THRESHOLD 25
