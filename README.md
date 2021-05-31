@@ -14,4 +14,7 @@
 
 6. Reiniciar nodeRed e importar los flujos.
 
+7. Abrir la carpeta web en el terminal.
+
+8. Ejecutar npm install y despues npm start para lanzar la página web, que será accesible desde http://localhost:4200/
 
