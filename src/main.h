@@ -83,7 +83,6 @@ static void air_quality_task_handler(void *pvParameters);
 static void light_quantity_task_handler(void *pvParameters);
 static void environment_send_task_handler(void *pvParameters);
 static void alarm_send_task_handler(void *pvParameters);
-static void testing_task_handler(void *pvParameters);
 void debug_print_alarm(alartMessage message, bool result);
 static void send_sensor_msg(int sensorPin, int value);
 void debug_print(environmentMessage message, bool result);

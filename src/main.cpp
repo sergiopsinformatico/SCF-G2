@@ -136,7 +136,6 @@ void setupPir() {
     xTaskCreatePinnedToCore(air_quality_task_handler, "airQualityTask", 1024, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(light_quantity_task_handler, "lightQuantityTask", 1024, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(environment_send_task_handler, "envTask", 2048, NULL, 3, NULL, 1);
-    xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 1);
     xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(go_to_sleep_task_handler, "goToSleepTask", 1024, NULL, 3, NULL, 1);
 }
@@ -506,28 +505,6 @@ static void alarm_send_task_handler(void *pvParameters)
   vTaskDelete(NULL);
 }
 
-/**
- * @brief Testing 
- */
-static void testing_task_handler(void *pvParameters)
-{
-  const TickType_t xDelay = 300000 / portTICK_PERIOD_MS;
-
-  int valueServo = 0;
-  int increment = -20;
-  for (;;)
-  {
-    vTaskDelay(xDelay);
-
-    servoMotor.write(valueServo);
-    if (valueServo == 180 || valueServo == 0)
-    {
-      increment = increment * -1;
-    }
-    valueServo += increment;
-  }
-  vTaskDelete(NULL);
-}
 
 // ----- UTILS -----
 
