@@ -32,6 +32,9 @@
 
 #define PIR_DELAY 60000
 
+#define TOUCH_ALARM 6
+#define TOUCH_PIR 7
+
 // Structs
 /**
  * Sensor data message, used on all sensor tasks.
@@ -66,6 +69,8 @@ typedef struct
 } EnvironmentTopicMsg;
 
 // Funciones
+void setupAlarm();
+void setupPir();
 void requiredInitialization();
 static void wifiConnect();
 void mqttConnect();

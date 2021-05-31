@@ -50,9 +50,32 @@ void setup()
 
   switch (touchPin)
   {
-  case 6:
+  case TOUCH_ALARM:
   {
-    // Si se ha despertado debido a la alarma simplemente
+    setupAlarm();
+  }
+  break;
+  case TOUCH_PIR:
+  {
+   setupPir();
+  }
+  break;
+  default:
+  {
+    // Añadimos las interrupciones
+    // Hay que añadirlas justo antes de esp_deep_sleep_start();
+    // En caso contrario las llamadas a attachInterrupt no funcionan.
+    touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
+    touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
+    // Nos vamos a dormir
+    Serial.println(F("Going to sleep now..."));
+    esp_deep_sleep_start();
+  }
+  }
+}
+
+void setupAlarm() {
+  // Si se ha despertado debido a la alarma simplemente
     // nos conectamos al wifi y mandamos el mensaje
     Serial.println(F("Touch detected on alarm pin"));
     networkConnect();
@@ -62,9 +85,9 @@ void setup()
       client.connect("ESP32Client1");
       if (!client.connected())
       {
-        Serial.print("failed, rc=");
+        Serial.print(F("failed, rc="));
         Serial.print(client.state());
-        Serial.println(" try again in 5 seconds");
+        Serial.println(F(" try again in 5 seconds"));
         delay(5000);
       }
     }
@@ -92,11 +115,10 @@ void setup()
     // Nos vamos a dormir
     Serial.println(F("Going to sleep now..."));
     esp_deep_sleep_start();
-  }
-  break;
-  case 7:
-  {
-    // Si se ha despertado por un cambio de presencia en el PIR..
+}
+
+void setupPir() {
+   // Si se ha despertado por un cambio de presencia en el PIR..
     Serial.println(F("Touch detected on PIR pin"));
 
     // Nos conectamos al wifi e inicializamos las interrupciones
@@ -117,22 +139,7 @@ void setup()
     xTaskCreatePinnedToCore(testing_task_handler, "testingTask", 1024, NULL, 5, NULL, 1);
     xTaskCreatePinnedToCore(alarm_send_task_handler, "alarmTask", 2048, NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(go_to_sleep_task_handler, "goToSleepTask", 1024, NULL, 3, NULL, 1);
-  }
-  break;
-  default:
-  {
-    // Añadimos las interrupciones
-    // Hay que añadirlas justo antes de esp_deep_sleep_start();
-    // En caso contrario las llamadas a attachInterrupt no funcionan.
-    touchAttachInterrupt(ALARM_BUTTON_PIN, NULL, 1);
-    touchAttachInterrupt(PRESENCE_PIN, NULL, 1);
-    // Nos vamos a dormir
-    Serial.println(F("Going to sleep now..."));
-    esp_deep_sleep_start();
-  }
-  }
 }
-
 void loop()
 {
 }
@@ -600,9 +607,14 @@ static environmentMessage load_environment_message()
   return message;
 }
 
+/**
+ * @brief Handle actions topic callback
+ *
+ */
 void mqttCallback(char *topic, byte *payload, unsigned int length)
-{ //MQTT MARCOS
-  Serial.printf("Topic: %s\r\n", ACTIONS_TOPIC);
+{ 
+  Serial.print(F("Topic: "));
+  Serial.println(ACTIONS_TOPIC);
 
   pb_istream_t stream = pb_istream_from_buffer(payload, length);
   ActuatorMessage message = ActuatorMessage_init_zero;
